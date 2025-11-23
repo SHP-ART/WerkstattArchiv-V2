@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 class PDFHandler(FileSystemEventHandler):
-    """Event-Handler für neue PDF-Dateien."""
+    """Event-Handler für neue PDF-Dateien (nur einzelne PDFs, keine Ordner)."""
     
     def __init__(self, callback: Callable[[Path], None]):
         """
@@ -34,6 +34,7 @@ class PDFHandler(FileSystemEventHandler):
     
     def on_created(self, event: FileSystemEvent) -> None:
         """Wird aufgerufen, wenn eine neue Datei erstellt wird."""
+        # Ignoriere Ordner - diese werden nur manuell verarbeitet
         if event.is_directory:
             return
         
@@ -43,13 +44,20 @@ class PDFHandler(FileSystemEventHandler):
         if file_path.suffix.lower() != '.pdf':
             return
         
+        # Ignoriere PDFs in Unterordnern - diese werden nur manuell verarbeitet
+        # Nur PDFs direkt im Eingangsordner werden automatisch verarbeitet
+        if file_path.parent.name != file_path.parents[1].name:
+            # PDF ist in einem Unterordner
+            logger.info(f"📁 PDF in Unterordner ignoriert (nur manuelle Verarbeitung): {file_path.relative_to(file_path.parents[1])}")
+            return
+        
         # Vermeiden, dass die gleiche Datei mehrfach verarbeitet wird
         if str(file_path) in self.processing_files:
             return
         
         self.processing_files.add(str(file_path))
         
-        logger.info(f"Neue PDF erkannt: {file_path.name}")
+        logger.info(f"📄 Neue PDF erkannt: {file_path.name}")
         
         # Warten, bis die Datei vollständig geschrieben wurde
         if self._wait_for_file_complete(file_path):

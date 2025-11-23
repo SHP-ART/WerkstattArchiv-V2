@@ -51,6 +51,10 @@ def process_single_pdf(pdf_path: Path, cfg: config.Config) -> bool:
     """
     Verarbeitet eine einzelne PDF-Datei.
     
+    Neue Logik:
+    - PDF wird in Auftrag (Seite 1) und Anhang (Rest) aufgeteilt
+    - Beide PDFs werden separat archiviert
+    
     Args:
         pdf_path: Pfad zur PDF-Datei
         cfg: Konfigurationsobjekt
@@ -67,7 +71,7 @@ def process_single_pdf(pdf_path: Path, cfg: config.Config) -> bool:
         max_pages = cfg.get("max_pages_to_ocr", 10)
         lang = cfg.get("tesseract_lang", "deu")
         
-        logger.info("Schritt 1/6: OCR-Verarbeitung...")
+        logger.info("Schritt 1/7: OCR-Verarbeitung...")
         page_texts = ocr.pdf_to_ocr_texts(pdf_path, max_pages=max_pages, lang=lang)
         
         if not page_texts:
@@ -75,8 +79,10 @@ def process_single_pdf(pdf_path: Path, cfg: config.Config) -> bool:
             archive.move_to_error_folder(pdf_path, cfg.get_input_folder())
             return False
         
+        logger.info(f"  → {len(page_texts)} Seiten erkannt")
+        
         # 2. Metadaten aus Seite 1 extrahieren
-        logger.info("Schritt 2/6: Metadaten-Extraktion...")
+        logger.info("Schritt 2/7: Metadaten-Extraktion...")
         try:
             # Dateiname als Fallback übergeben für Auftragsnummer-Extraktion
             metadata = parser.extract_auftrag_metadata(page_texts[0], fallback_filename=pdf_path.name)
@@ -93,45 +99,97 @@ def process_single_pdf(pdf_path: Path, cfg: config.Config) -> bool:
         logger.info(f"  VIN: {metadata.get('vin', 'N/A')}")
         logger.info(f"  Formular: {metadata.get('formular_version', 'N/A')}")
         
-        # 3. Schlagwörter aus Seiten 2-10 extrahieren
-        logger.info("Schritt 3/6: Schlagwort-Suche in Anhängen...")
-        keywords = cfg.get_keywords()
-        keywords_found = parser.extract_keywords_from_pages(page_texts, keywords, start_page=2)
+        # 3. PDF in Auftrag + Anhang aufteilen
+        logger.info("Schritt 3/7: PDF aufteilen (Auftrag + Anhang)...")
+        from pdf_split import split_pdf_auftrag_anhang, PDFSplitError
         
-        if keywords_found:
-            logger.info(f"  Gefundene Schlagwörter: {parser.format_keywords_for_display(keywords_found)}")
+        # Temporäres Verzeichnis für Split
+        temp_dir = pdf_path.parent / f".temp_{metadata['auftrag_nr']}"
+        temp_dir.mkdir(exist_ok=True)
+        
+        try:
+            auftrag_pdf, anhang_pdf = split_pdf_auftrag_anhang(
+                pdf_path,
+                temp_dir,
+                metadata['auftrag_nr']
+            )
+        except PDFSplitError as e:
+            logger.error(f"Fehler beim Aufteilen der PDF: {e}")
+            archive.move_to_error_folder(pdf_path, cfg.get_input_folder())
+            return False
+        
+        # 4. Schlagwörter aus Anhang-Seiten extrahieren (falls vorhanden)
+        logger.info("Schritt 4/7: Schlagwort-Suche in Anhang...")
+        keywords_found = {}
+        
+        if anhang_pdf and len(page_texts) > 1:
+            keywords = cfg.get_keywords()
+            # Seiten 2-N für Keywords (page_texts[1:])
+            keywords_found = parser.extract_keywords_from_pages(
+                page_texts[1:],  # Nur Anhang-Seiten
+                keywords,
+                start_page=2  # Startet bei Seite 2
+            )
+            
+            if keywords_found:
+                logger.info(f"  Gefundene Schlagwörter: {parser.format_keywords_for_display(keywords_found)}")
+            else:
+                logger.info("  Keine Schlagwörter gefunden")
         else:
-            logger.info("  Keine Schlagwörter gefunden")
+            logger.info("  Kein Anhang vorhanden (nur 1 Seite)")
         
-        # 4. Datei ins Archiv verschieben
-        logger.info("Schritt 4/6: Archivierung...")
+        # 5. Auftrag-PDF ins Archiv verschieben
+        logger.info("Schritt 5/7: Auftrag archivieren...")
         archiv_root = cfg.get_archiv_root()
-        target_path, file_hash = archive.move_to_archive(
-            pdf_path,
+        target_path_auftrag, file_hash_auftrag = archive.move_to_archive(
+            auftrag_pdf,
             archiv_root,
             metadata['auftrag_nr'],
             cfg.config,
             metadata  # Übergebe Metadaten für flexiblen Dateinamen
         )
-        logger.info(f"  Archiviert als: {target_path}")
+        logger.info(f"  Archiviert als: {target_path_auftrag.name}")
         
-        # 5. In Datenbank speichern
-        logger.info("Schritt 5/6: Datenbank-Update...")
+        # 6. Anhang-PDF ins Archiv verschieben (falls vorhanden)
+        anhang_path_in_archive = None
+        if anhang_pdf:
+            logger.info("Schritt 6/7: Anhang archivieren...")
+            # Anhang in denselben Ordner wie Auftrag verschieben
+            target_dir = target_path_auftrag.parent
+            anhang_filename = anhang_pdf.name
+            target_path_anhang = target_dir / anhang_filename
+            
+            # Falls Datei bereits existiert, versionieren
+            version = 1
+            while target_path_anhang.exists():
+                version += 1
+                base_name = anhang_pdf.stem  # z.B. "076329_Anhang_S2-10"
+                anhang_filename = f"{base_name}_v{version}.pdf"
+                target_path_anhang = target_dir / anhang_filename
+            
+            import shutil
+            shutil.move(str(anhang_pdf), str(target_path_anhang))
+            anhang_path_in_archive = target_path_anhang
+            logger.info(f"  Archiviert als: {target_path_anhang.name}")
+        else:
+            logger.info("Schritt 6/7: Kein Anhang vorhanden")
+        
+        # 7. In Datenbank speichern
+        logger.info("Schritt 7/7: Datenbank-Update...")
         db_path = cfg.get_db_path()
         auftrag_id = db.insert_auftrag(
             db_path,
             metadata,
             keywords_found,
-            target_path,
-            file_hash
+            target_path_auftrag,  # Hauptpfad = Auftrag
+            file_hash_auftrag
         )
         logger.info(f"  Datenbank-ID: {auftrag_id}")
         
-        # 6. Kunden-Index aktualisieren
-        logger.info("Schritt 6/6: Kunden-Index aktualisieren...")
+        # Kunden-Index aktualisieren
         index_path = cfg.get_kunden_index_path()
         kunden_index.update_kunden_index(index_path, {
-            "file_path": str(target_path),
+            "file_path": str(target_path_auftrag),
             "auftrag_nr": metadata['auftrag_nr'],
             "kunden_nr": metadata.get('kunden_nr'),
             "kunde_name": metadata.get('name'),
@@ -141,8 +199,22 @@ def process_single_pdf(pdf_path: Path, cfg: config.Config) -> bool:
             "formular_version": metadata.get('formular_version')
         })
         
+        # Original-PDF löschen
+        pdf_path.unlink()
+        logger.info(f"  Original-PDF gelöscht: {pdf_path.name}")
+        
+        # Temp-Verzeichnis aufräumen
+        import shutil
+        if temp_dir.exists():
+            shutil.rmtree(temp_dir)
+        
         logger.info("=" * 60)
         logger.info(f"✓ Erfolgreich verarbeitet: {pdf_path.name}")
+        if anhang_path_in_archive:
+            logger.info(f"  → Auftrag: {target_path_auftrag.name}")
+            logger.info(f"  → Anhang: {anhang_path_in_archive.name}")
+        else:
+            logger.info(f"  → Auftrag: {target_path_auftrag.name} (kein Anhang)")
         logger.info("=" * 60)
         return True
         

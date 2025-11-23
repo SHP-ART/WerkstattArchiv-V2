@@ -243,6 +243,10 @@ class Config:
             logger.error(f"Fehler beim Speichern der Konfiguration: {e}")
             raise
     
+    def save_config(self) -> None:
+        """Alias für save() - für Kompatibilität"""
+        self.save()
+    
     def get(self, key: str, default: Any = None) -> Any:
         """
         Holt einen Konfigurationswert.

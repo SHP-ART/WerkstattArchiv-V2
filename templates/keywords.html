@@ -1,0 +1,409 @@
+{% extends "base.html" %}
+
+{% block title %}Schlagwörter - Werkstatt-Archiv{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h2><i class="bi bi-tags"></i> Schlagwörter verwalten</h2>
+            <p class="text-muted">
+                Verwalten Sie die Schlagwörter, die in Dokumenten gesucht werden (Seiten 2-10).
+                Änderungen werden sofort gespeichert.
+            </p>
+        </div>
+    </div>
+
+    <!-- Aktions-Buttons -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-primary" id="addKeywordBtn">
+                    <i class="bi bi-plus-circle"></i> Neues Schlagwort
+                </button>
+                <button type="button" class="btn btn-success" id="saveKeywordsBtn">
+                    <i class="bi bi-save"></i> Speichern
+                </button>
+                <button type="button" class="btn btn-warning" id="rescanBtn">
+                    <i class="bi bi-arrow-repeat"></i> Alle PDFs neu verschlagworten
+                </button>
+                <button type="button" class="btn btn-secondary" id="resetKeywordsBtn">
+                    <i class="bi bi-arrow-counterclockwise"></i> Zurücksetzen
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert-Bereich -->
+    <div id="alertContainer"></div>
+
+    <!-- Schlagwort-Liste -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>
+                        <i class="bi bi-list-ul"></i> Schlagwortliste
+                        <span class="badge bg-primary" id="keywordCount">0</span>
+                    </span>
+                    <div>
+                        <input type="text" class="form-control form-control-sm d-inline-block" 
+                               id="searchKeyword" placeholder="Filtern..." style="width: 200px;">
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="keywordList" class="list-group">
+                        <!-- Wird dynamisch gefüllt -->
+                    </div>
+                    <div id="loadingKeywords" class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Lade Schlagwörter...</span>
+                        </div>
+                        <p class="mt-2">Lade Schlagwörter...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistik-Sidebar -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-bar-chart"></i> Statistik
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <h6>Kategorien</h6>
+                        <ul class="list-unstyled">
+                            <li><i class="bi bi-shield-check text-warning"></i> Garantie/Kulanz: <strong id="statGarantie">0</strong></li>
+                            <li><i class="bi bi-tools text-primary"></i> Diagnose/Fehler: <strong id="statDiagnose">0</strong></li>
+                            <li><i class="bi bi-braces text-danger"></i> Bremsen/Fahrwerk: <strong id="statBremsen">0</strong></li>
+                            <li><i class="bi bi-wrench text-success"></i> Service/Wartung: <strong id="statService">0</strong></li>
+                            <li><i class="bi bi-cash text-info"></i> Kosten/Dokumente: <strong id="statKosten">0</strong></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h6>Gesamt</h6>
+                        <p class="fs-4 mb-0"><strong id="totalKeywords">0</strong> Schlagwörter</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Re-Scan Status -->
+            <div class="card mt-3" id="rescanStatusCard" style="display: none;">
+                <div class="card-header bg-warning text-dark">
+                    <i class="bi bi-info-circle"></i> Neu-Verschlagwortung läuft
+                </div>
+                <div class="card-body">
+                    <div class="progress mb-2">
+                        <div id="rescanProgress" class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" style="width: 0%">0%</div>
+                    </div>
+                    <p class="mb-0"><small id="rescanStatus">Starte...</small></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Schlagwort hinzufügen -->
+<div class="modal fade" id="addKeywordModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Neues Schlagwort</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="newKeywordInput" class="form-label">Schlagwort</label>
+                    <input type="text" class="form-control" id="newKeywordInput" 
+                           placeholder="z.B. Garantie, Fehlercode, Bremsbelag">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-primary" id="confirmAddKeywordBtn">Hinzufügen</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Bestätigung Re-Scan -->
+<div class="modal fade" id="rescanConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title">Neu-Verschlagwortung bestätigen</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>Achtung:</strong> Diese Aktion durchsucht alle vorhandenen PDFs im Archiv nach den aktuellen Schlagwörtern.</p>
+                <p>Dies kann bei vielen Aufträgen mehrere Minuten dauern.</p>
+                <p class="mb-0">Möchten Sie fortfahren?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-warning" id="confirmRescanBtn">
+                    <i class="bi bi-arrow-repeat"></i> Neu-Verschlagwortung starten
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let keywords = [];
+let originalKeywords = [];
+let addKeywordModal;
+let rescanConfirmModal;
+
+// Initialisierung
+document.addEventListener('DOMContentLoaded', function() {
+    addKeywordModal = new bootstrap.Modal(document.getElementById('addKeywordModal'));
+    rescanConfirmModal = new bootstrap.Modal(document.getElementById('rescanConfirmModal'));
+    
+    loadKeywords();
+    
+    // Event Listeners
+    document.getElementById('addKeywordBtn').addEventListener('click', () => {
+        document.getElementById('newKeywordInput').value = '';
+        addKeywordModal.show();
+    });
+    
+    document.getElementById('confirmAddKeywordBtn').addEventListener('click', addNewKeyword);
+    document.getElementById('saveKeywordsBtn').addEventListener('click', saveKeywords);
+    document.getElementById('resetKeywordsBtn').addEventListener('click', resetKeywords);
+    document.getElementById('rescanBtn').addEventListener('click', () => rescanConfirmModal.show());
+    document.getElementById('confirmRescanBtn').addEventListener('click', startRescan);
+    document.getElementById('searchKeyword').addEventListener('input', filterKeywords);
+});
+
+// Schlagwörter laden
+async function loadKeywords() {
+    try {
+        const response = await fetch('/api/keywords');
+        const data = await response.json();
+        
+        if (data.keywords) {
+            keywords = [...data.keywords];
+            originalKeywords = [...data.keywords];
+            renderKeywords();
+            updateStatistics();
+        }
+    } catch (error) {
+        showAlert('Fehler beim Laden der Schlagwörter: ' + error.message, 'danger');
+    } finally {
+        document.getElementById('loadingKeywords').style.display = 'none';
+    }
+}
+
+// Schlagwörter rendern
+function renderKeywords(filter = '') {
+    const container = document.getElementById('keywordList');
+    const filteredKeywords = filter 
+        ? keywords.filter(k => k.toLowerCase().includes(filter.toLowerCase()))
+        : keywords;
+    
+    container.innerHTML = filteredKeywords.map((keyword, index) => `
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+            <div class="flex-grow-1">
+                <input type="text" class="form-control form-control-sm" 
+                       value="${keyword}" 
+                       onchange="updateKeyword(${keywords.indexOf(keyword)}, this.value)">
+            </div>
+            <button class="btn btn-sm btn-danger ms-2" onclick="removeKeyword(${keywords.indexOf(keyword)})">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>
+    `).join('');
+    
+    document.getElementById('keywordCount').textContent = keywords.length;
+}
+
+// Schlagwort hinzufügen
+function addNewKeyword() {
+    const input = document.getElementById('newKeywordInput');
+    const keyword = input.value.trim();
+    
+    if (!keyword) {
+        showAlert('Bitte geben Sie ein Schlagwort ein', 'warning');
+        return;
+    }
+    
+    if (keywords.includes(keyword)) {
+        showAlert('Dieses Schlagwort existiert bereits', 'warning');
+        return;
+    }
+    
+    keywords.push(keyword);
+    renderKeywords();
+    updateStatistics();
+    addKeywordModal.hide();
+    showAlert(`Schlagwort "${keyword}" hinzugefügt`, 'success');
+}
+
+// Schlagwort aktualisieren
+function updateKeyword(index, newValue) {
+    const trimmed = newValue.trim();
+    if (trimmed && !keywords.includes(trimmed)) {
+        keywords[index] = trimmed;
+        updateStatistics();
+    } else {
+        renderKeywords();
+    }
+}
+
+// Schlagwort entfernen
+function removeKeyword(index) {
+    const keyword = keywords[index];
+    if (confirm(`Schlagwort "${keyword}" wirklich löschen?`)) {
+        keywords.splice(index, 1);
+        renderKeywords();
+        updateStatistics();
+        showAlert(`Schlagwort "${keyword}" entfernt`, 'info');
+    }
+}
+
+// Schlagwörter speichern
+async function saveKeywords() {
+    try {
+        const response = await fetch('/api/keywords', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({keywords: keywords})
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            originalKeywords = [...keywords];
+            showAlert('Schlagwörter erfolgreich gespeichert', 'success');
+        } else {
+            showAlert('Fehler beim Speichern: ' + data.message, 'danger');
+        }
+    } catch (error) {
+        showAlert('Fehler beim Speichern: ' + error.message, 'danger');
+    }
+}
+
+// Zurücksetzen
+function resetKeywords() {
+    if (confirm('Alle Änderungen verwerfen?')) {
+        keywords = [...originalKeywords];
+        renderKeywords();
+        updateStatistics();
+        showAlert('Änderungen verworfen', 'info');
+    }
+}
+
+// Filtern
+function filterKeywords(event) {
+    renderKeywords(event.target.value);
+}
+
+// Statistiken aktualisieren
+function updateStatistics() {
+    const categories = {
+        garantie: ['Garantie', 'Gewährleistung', 'Kulanz', 'Rückruf'],
+        diagnose: ['Fehler', 'Diagnose', 'Motor', 'Getriebe', 'DTC', 'Steuergerät'],
+        bremsen: ['Bremse', 'Bremsbelag', 'Stoßdämpfer', 'Fahrwerk', 'Reifen'],
+        service: ['Wartung', 'Inspektion', 'Service', 'Ölwechsel', 'Filter'],
+        kosten: ['Kosten', 'Rechnung', 'Freigabe', 'Angebot', 'Kalkulation']
+    };
+    
+    const counts = {
+        garantie: keywords.filter(k => categories.garantie.some(c => k.includes(c))).length,
+        diagnose: keywords.filter(k => categories.diagnose.some(c => k.includes(c))).length,
+        bremsen: keywords.filter(k => categories.bremsen.some(c => k.includes(c))).length,
+        service: keywords.filter(k => categories.service.some(c => k.includes(c))).length,
+        kosten: keywords.filter(k => categories.kosten.some(c => k.includes(c))).length
+    };
+    
+    document.getElementById('statGarantie').textContent = counts.garantie;
+    document.getElementById('statDiagnose').textContent = counts.diagnose;
+    document.getElementById('statBremsen').textContent = counts.bremsen;
+    document.getElementById('statService').textContent = counts.service;
+    document.getElementById('statKosten').textContent = counts.kosten;
+    document.getElementById('totalKeywords').textContent = keywords.length;
+}
+
+// Re-Scan starten
+async function startRescan() {
+    rescanConfirmModal.hide();
+    
+    const statusCard = document.getElementById('rescanStatusCard');
+    const progressBar = document.getElementById('rescanProgress');
+    const statusText = document.getElementById('rescanStatus');
+    
+    statusCard.style.display = 'block';
+    progressBar.style.width = '0%';
+    progressBar.textContent = '0%';
+    statusText.textContent = 'Starte Neu-Verschlagwortung...';
+    
+    try {
+        const response = await fetch('/api/keywords/rescan', {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Poll Status
+            pollRescanStatus();
+        } else {
+            showAlert('Fehler beim Starten: ' + data.message, 'danger');
+            statusCard.style.display = 'none';
+        }
+    } catch (error) {
+        showAlert('Fehler beim Starten: ' + error.message, 'danger');
+        statusCard.style.display = 'none';
+    }
+}
+
+// Re-Scan Status abfragen
+let rescanPollInterval;
+async function pollRescanStatus() {
+    rescanPollInterval = setInterval(async () => {
+        try {
+            const response = await fetch('/api/keywords/rescan/status');
+            const data = await response.json();
+            
+            const progressBar = document.getElementById('rescanProgress');
+            const statusText = document.getElementById('rescanStatus');
+            
+            progressBar.style.width = data.progress + '%';
+            progressBar.textContent = data.progress + '%';
+            statusText.textContent = data.status;
+            
+            if (data.finished) {
+                clearInterval(rescanPollInterval);
+                setTimeout(() => {
+                    document.getElementById('rescanStatusCard').style.display = 'none';
+                    showAlert(`Neu-Verschlagwortung abgeschlossen: ${data.processed} Aufträge bearbeitet`, 'success');
+                }, 2000);
+            }
+        } catch (error) {
+            clearInterval(rescanPollInterval);
+            showAlert('Fehler beim Abrufen des Status', 'danger');
+        }
+    }, 1000);
+}
+
+// Alert anzeigen
+function showAlert(message, type) {
+    const container = document.getElementById('alertContainer');
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type} alert-dismissible fade show`;
+    alert.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    container.appendChild(alert);
+    
+    setTimeout(() => alert.remove(), 5000);
+}
+</script>
+{% endblock %}

@@ -27,16 +27,35 @@ echo [OK] Python gefunden:
 python --version
 echo.
 
-REM Prüfe ob pip verfügbar ist
-python -m pip --version >nul 2>&1
+REM Erstelle Virtual Environment
+echo ============================================================
+echo   Erstelle Virtual Environment...
+echo ============================================================
+echo.
+
+if exist ".venv" (
+    echo [INFO] Virtual Environment existiert bereits (.venv)
+) else (
+    echo [*] Erstelle .venv...
+    python -m venv .venv
+    if errorlevel 1 (
+        echo [FEHLER] Konnte Virtual Environment nicht erstellen!
+        pause
+        exit /b 1
+    )
+    echo [OK] Virtual Environment erstellt
+)
+echo.
+
+REM Aktiviere Virtual Environment
+echo [*] Aktiviere Virtual Environment...
+call .venv\Scripts\activate.bat
 if errorlevel 1 (
-    echo [FEHLER] pip ist nicht verfuegbar!
-    echo.
+    echo [FEHLER] Konnte Virtual Environment nicht aktivieren!
     pause
     exit /b 1
 )
-
-echo [OK] pip gefunden
+echo [OK] Virtual Environment aktiv
 echo.
 
 REM Installiere Python-Pakete

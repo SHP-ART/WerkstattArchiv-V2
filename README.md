@@ -34,20 +34,60 @@ pip install -r requirements.txt
 
 ## Installation
 
+### Automatische Installation (Empfohlen)
+
+**macOS/Linux:**
+```bash
+./install.sh
+```
+
+**Windows:**
+```batch
+install.bat
+```
+
+Das Script erstellt automatisch:
+- Virtual Environment (.venv)
+- Installiert alle Python-Pakete
+- Prüft Tesseract-Installation
+- Erstellt notwendige Verzeichnisse
+
+### Manuelle Installation
+
 1. Repository klonen oder herunterladen
-2. Python-Abhängigkeiten installieren:
+2. Virtual Environment erstellen:
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate  # macOS/Linux
+   .venv\Scripts\activate.bat  # Windows
+   ```
+3. Python-Abhängigkeiten installieren:
    ```bash
    pip install -r requirements.txt
    ```
-3. Tesseract OCR installieren (siehe oben)
-4. Konfiguration einrichten (siehe unten)
+4. Tesseract OCR installieren (siehe oben)
+5. Konfiguration einrichten (siehe unten)
 
 ## Konfiguration
 
 ### Erstkonfiguration
 
-Beim ersten Start erstellt das Programm automatisch eine Standardkonfiguration. Du kannst die Pfade über CLI-Optionen setzen:
+**Option 1: Web-UI (Empfohlen)**
+```bash
+./start_server.sh  # macOS/Linux
+start_server.bat   # Windows
+```
+Dann Browser öffnen: http://localhost:8080/settings
 
+**Option 2: CLI**
+
+Aktiviere zuerst das Virtual Environment:
+```bash
+source .venv/bin/activate  # macOS/Linux
+.venv\Scripts\activate.bat  # Windows
+```
+
+Dann Pfade setzen:
 ```bash
 # Eingangsordner setzen (Netzwerkpfad)
 python main.py --set-input-folder "/Volumes/Server/Werkstatt/Scans/Eingang"

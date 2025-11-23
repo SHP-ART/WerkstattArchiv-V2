@@ -39,8 +39,8 @@ if not "!pids!"=="" (
 )
 echo.
 
-REM [3/8] Prüfe Python-Installation
-echo [3/8] Pruefe Python-Installation...
+REM [3/8] Prüfe Python-Installation und Virtual Environment
+echo [3/8] Pruefe Python-Installation und Virtual Environment...
 python --version >nul 2>&1
 if errorlevel 1 (
     echo [FEHLER] Python nicht gefunden!
@@ -50,17 +50,36 @@ if errorlevel 1 (
 )
 
 for /f "tokens=2" %%v in ('python --version 2^>^&1') do echo [OK] Python %%v
-echo.
 
-REM [4/8] Prüfe Python-Abhängigkeiten
-echo [4/8] Pruefe Python-Abhaengigkeiten...
-python -c "import flask, waitress, Pillow, pytesseract" >nul 2>&1
-if errorlevel 1 (
-    echo [FEHLER] Fehlende Abhaengigkeiten!
+REM Virtual Environment prüfen und aktivieren
+if exist ".venv\Scripts\activate.bat" (
+    echo [OK] Virtual Environment gefunden
+    call .venv\Scripts\activate.bat
+    if errorlevel 1 (
+        echo [FEHLER] Konnte Virtual Environment nicht aktivieren!
+        pause
+        exit /b 1
+    )
+    echo [OK] Virtual Environment aktiviert
+) else (
+    echo [FEHLER] Kein Virtual Environment gefunden ^(.venv^)
     echo Bitte fuehren Sie install.bat aus.
     pause
     exit /b 1
 )
+echo.
+
+REM [4/8] Prüfe Python-Abhängigkeiten im venv
+echo [4/8] Pruefe Python-Abhaengigkeiten ^(venv^)...
+REM Note: Pillow is imported as 'PIL', not 'Pillow'
+python -c "import flask, waitress, PIL, pytesseract, PyPDF2" >nul 2>&1
+if errorlevel 1 (
+    echo [FEHLER] Fehlende Abhaengigkeiten!
+    echo Installiere mit: pip install -r requirements.txt
+    pause
+    exit /b 1
+)
+echo [OK] Alle Abhaengigkeiten installiert ^(venv^)
 echo [OK] Alle Abhaengigkeiten installiert
 echo.
 

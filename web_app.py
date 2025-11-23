@@ -1257,8 +1257,9 @@ def start_watcher():
             return jsonify({'error': 'Watcher läuft bereits'}), 400
         
         c = get_config()
-        if not c.validate():
-            return jsonify({'error': 'Konfiguration ungültig'}), 400
+        errors = c.validate()
+        if errors:  # Wenn Fehler-Liste nicht leer ist
+            return jsonify({'error': f'Konfiguration ungültig: {"; ".join(errors)}'}), 400
         
         watcher_running = True
         
@@ -1617,6 +1618,175 @@ def backup_log():
     except Exception as e:
         logger.error(f"Fehler beim Laden des Logs: {e}")
         return f'Fehler: {e}', 500
+
+
+# ============================================================
+# ROUTES - Keywords Management
+# ============================================================
+
+@app.route('/keywords')
+def keywords_page():
+    """Schlagwörter-Verwaltung"""
+    return render_template('keywords.html')
+
+
+@app.route('/api/keywords', methods=['GET'])
+def get_keywords():
+    """API: Schlagwörter abrufen"""
+    try:
+        c = get_config()
+        keywords = c.config.get('keywords', [])
+        return jsonify({'keywords': keywords, 'count': len(keywords)})
+    except Exception as e:
+        logger.error(f"Fehler beim Laden der Schlagwörter: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/keywords', methods=['POST'])
+def save_keywords():
+    """API: Schlagwörter speichern"""
+    try:
+        data = request.get_json()
+        new_keywords = data.get('keywords', [])
+        
+        # Validierung
+        if not isinstance(new_keywords, list):
+            return jsonify({'success': False, 'message': 'Keywords müssen eine Liste sein'}), 400
+        
+        # Entferne Duplikate und leere Einträge
+        cleaned_keywords = list(set([k.strip() for k in new_keywords if k and k.strip()]))
+        
+        # Speichere in Config
+        c = get_config()
+        c.config['keywords'] = cleaned_keywords
+        c.save_config()
+        
+        logger.info(f"Schlagwörter aktualisiert: {len(cleaned_keywords)} Einträge")
+        return jsonify({'success': True, 'count': len(cleaned_keywords)})
+        
+    except Exception as e:
+        logger.error(f"Fehler beim Speichern der Schlagwörter: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# Globale Variablen für Re-Scan Status
+rescan_status = {
+    'running': False,
+    'progress': 0,
+    'processed': 0,
+    'total': 0,
+    'status': 'Bereit',
+    'finished': False
+}
+
+
+@app.route('/api/keywords/rescan', methods=['POST'])
+def start_keyword_rescan():
+    """API: Neu-Verschlagwortung aller PDFs starten"""
+    global rescan_status
+    
+    if rescan_status['running']:
+        return jsonify({'success': False, 'message': 'Re-Scan läuft bereits'}), 409
+    
+    # Starte Re-Scan in separatem Thread
+    def run_rescan():
+        global rescan_status
+        
+        try:
+            rescan_status['running'] = True
+            rescan_status['progress'] = 0
+            rescan_status['processed'] = 0
+            rescan_status['finished'] = False
+            rescan_status['status'] = 'Initialisiere...'
+            
+            c = get_config()
+            db_path = c.get_archiv_root() / "werkstatt.db"
+            keywords_list = c.config.get('keywords', [])
+            
+            if not db_path.exists():
+                rescan_status['status'] = 'Fehler: Datenbank nicht gefunden'
+                rescan_status['running'] = False
+                rescan_status['finished'] = True
+                return
+            
+            # Hole alle Aufträge
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute('SELECT id, auftrag_nr, file_path FROM auftraege')
+            auftraege = cursor.fetchall()
+            conn.close()
+            
+            rescan_status['total'] = len(auftraege)
+            rescan_status['status'] = f'Verarbeite {len(auftraege)} Aufträge...'
+            
+            # Verarbeite jeden Auftrag
+            for idx, auftrag in enumerate(auftraege):
+                try:
+                    file_path = Path(auftrag['file_path'])
+                    
+                    if not file_path.exists():
+                        logger.warning(f"PDF nicht gefunden: {file_path}")
+                        continue
+                    
+                    # OCR für Seiten 2-10
+                    try:
+                        ocr_texts = ocr.pdf_to_ocr_texts(file_path, max_pages=10)
+                        
+                        # Extrahiere Keywords aus Seiten 2-10 (Index 1-9)
+                        attachment_texts = ocr_texts[1:10] if len(ocr_texts) > 1 else []
+                        found_keywords = auftrag_parser.extract_keywords_from_pages(
+                            attachment_texts, 
+                            keywords_list
+                        )
+                        
+                        # Aktualisiere Datenbank
+                        keywords_json = json.dumps(found_keywords, ensure_ascii=False)
+                        conn = sqlite3.connect(str(db_path))
+                        cursor = conn.cursor()
+                        cursor.execute(
+                            'UPDATE auftraege SET keywords_json = ? WHERE id = ?',
+                            (keywords_json, auftrag['id'])
+                        )
+                        conn.commit()
+                        conn.close()
+                        
+                        logger.info(f"Re-Scan: {auftrag['auftrag_nr']} - {len(found_keywords)} Schlagwörter gefunden")
+                        
+                    except Exception as ocr_error:
+                        logger.error(f"OCR-Fehler bei {auftrag['auftrag_nr']}: {ocr_error}")
+                        continue
+                    
+                except Exception as e:
+                    logger.error(f"Fehler bei Auftrag {auftrag.get('auftrag_nr')}: {e}")
+                    continue
+                finally:
+                    rescan_status['processed'] = idx + 1
+                    rescan_status['progress'] = int((idx + 1) / len(auftraege) * 100)
+                    rescan_status['status'] = f'{idx + 1}/{len(auftraege)} Aufträge bearbeitet'
+            
+            rescan_status['status'] = f'Abgeschlossen: {rescan_status["processed"]} Aufträge bearbeitet'
+            rescan_status['finished'] = True
+            logger.info(f"Re-Scan abgeschlossen: {rescan_status['processed']}/{rescan_status['total']} Aufträge")
+            
+        except Exception as e:
+            logger.error(f"Re-Scan Fehler: {e}")
+            rescan_status['status'] = f'Fehler: {e}'
+            rescan_status['finished'] = True
+        finally:
+            rescan_status['running'] = False
+    
+    # Starte Thread
+    thread = threading.Thread(target=run_rescan, daemon=True)
+    thread.start()
+    
+    return jsonify({'success': True, 'message': 'Re-Scan gestartet'})
+
+
+@app.route('/api/keywords/rescan/status', methods=['GET'])
+def get_rescan_status():
+    """API: Re-Scan Status abrufen"""
+    return jsonify(rescan_status)
 
 
 # ============================================================

@@ -44,8 +44,10 @@ else
 fi
 echo ""
 
-# Schritt 3: Python-Version prüfen
-echo -e "${YELLOW}[3/8]${NC} Prüfe Python-Installation..."
+# Schritt 3: Python-Version und venv prüfen
+echo -e "${YELLOW}[3/8]${NC} Prüfe Python-Installation und Virtual Environment..."
+
+# Python prüfen
 PYTHON_VERSION=$(python3 --version 2>&1)
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓${NC} $PYTHON_VERSION"
@@ -55,6 +57,25 @@ else
     echo "$(date '+%Y-%m-%d %H:%M:%S') - FEHLER: Python3 nicht gefunden" >> "$STARTUP_LOG"
     exit 1
 fi
+
+# Virtual Environment prüfen und aktivieren
+if [ -d ".venv" ]; then
+    echo -e "${GREEN}✓${NC} Virtual Environment gefunden"
+    source .venv/bin/activate
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓${NC} Virtual Environment aktiviert"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') - venv aktiviert" >> "$STARTUP_LOG"
+    else
+        echo -e "${RED}✗${NC} Konnte venv nicht aktivieren!"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') - FEHLER: venv Aktivierung fehlgeschlagen" >> "$STARTUP_LOG"
+        exit 1
+    fi
+else
+    echo -e "${YELLOW}⚠${NC}  Kein Virtual Environment gefunden (.venv)"
+    echo -e "${YELLOW}→${NC} Erstelle mit: python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - WARNING: Kein venv gefunden" >> "$STARTUP_LOG"
+    exit 1
+fi
 echo ""
 
 # Schritt 4: Abhängigkeiten prüfen
@@ -62,20 +83,24 @@ echo -e "${YELLOW}[4/8]${NC} Prüfe Python-Abhängigkeiten..."
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Prüfe Dependencies..." >> "$STARTUP_LOG"
 
 MISSING_DEPS=()
-for pkg in flask waitress pytesseract; do
-    python3 -c "import $pkg" 2>/dev/null
+# Note: Pillow is imported as 'PIL', not 'Pillow'
+IMPORT_NAMES=("flask:flask" "waitress:waitress" "pytesseract:pytesseract" "Pillow:PIL" "PyPDF2:PyPDF2")
+for mapping in "${IMPORT_NAMES[@]}"; do
+    pkg_name="${mapping%%:*}"
+    import_name="${mapping##*:}"
+    python -c "import $import_name" 2>/dev/null
     if [ $? -ne 0 ]; then
-        MISSING_DEPS+=($pkg)
+        MISSING_DEPS+=($pkg_name)
     fi
 done
 
 if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
     echo -e "${RED}✗${NC} Fehlende Pakete: ${MISSING_DEPS[*]}"
-    echo -e "${YELLOW}→${NC} Installiere mit: pip3 install ${MISSING_DEPS[*]}"
+    echo -e "${YELLOW}→${NC} Installiere mit: pip install -r requirements.txt"
     echo "$(date '+%Y-%m-%d %H:%M:%S') - FEHLER: Fehlende Pakete: ${MISSING_DEPS[*]}" >> "$STARTUP_LOG"
     exit 1
 else
-    echo -e "${GREEN}✓${NC} Alle Abhängigkeiten installiert"
+    echo -e "${GREEN}✓${NC} Alle Abhängigkeiten installiert (venv)"
 fi
 echo ""
 
@@ -96,7 +121,7 @@ echo ""
 # Schritt 6: Syntax-Check
 echo -e "${YELLOW}[6/8]${NC} Prüfe Python-Syntax..."
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Syntax-Check..." >> "$STARTUP_LOG"
-python3 -m py_compile web_app.py 2>> "$STARTUP_LOG"
+python -m py_compile web_app.py 2>> "$STARTUP_LOG"
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓${NC} Syntax OK"
 else
@@ -106,10 +131,10 @@ fi
 echo ""
 
 # Schritt 7: Server starten
-echo -e "${YELLOW}[7/8]${NC} Starte Web-Server..."
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Starte Server..." >> "$STARTUP_LOG"
+echo -e "${YELLOW}[7/8]${NC} Starte Web-Server (venv)..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Starte Server (venv)..." >> "$STARTUP_LOG"
 
-nohup python3 -u web_app.py --port $PORT > "$LOG_FILE" 2>&1 &
+nohup python -u web_app.py --port $PORT > "$LOG_FILE" 2>&1 &
 SERVER_PID=$!
 echo $SERVER_PID > "$PID_FILE"
 

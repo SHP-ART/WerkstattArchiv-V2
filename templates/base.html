@@ -197,6 +197,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'keywords_page' %}active{% endif %}" href="/keywords">
+                            <i class="bi bi-tags"></i> Schlagwörter
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'backup_page' %}active{% endif %}" href="/backup">
                             <i class="bi bi-shield-check"></i> Backup
                         </a>
