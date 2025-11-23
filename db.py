@@ -36,8 +36,20 @@ def init_db(db_path: Path) -> None:
         # Sicherstellen, dass das Verzeichnis existiert
         db_path.parent.mkdir(parents=True, exist_ok=True)
         
-        conn = sqlite3.connect(db_path)
+        # Optimierungen für Netzwerkspeicher
+        conn = sqlite3.connect(
+            db_path,
+            timeout=30.0,  # 30 Sekunden Timeout bei Lock
+            isolation_level='DEFERRED'  # Bessere Concurrency
+        )
         cursor = conn.cursor()
+        
+        # Performance-Optimierungen für Netzwerk
+        cursor.execute('PRAGMA journal_mode=WAL')  # Write-Ahead Logging (bessere Concurrency)
+        cursor.execute('PRAGMA synchronous=NORMAL')  # Schneller auf Netzwerk
+        cursor.execute('PRAGMA cache_size=-64000')  # 64MB Cache
+        cursor.execute('PRAGMA temp_store=MEMORY')  # Temp-Daten im RAM
+        cursor.execute('PRAGMA mmap_size=268435456')  # 256MB Memory-Mapped I/O
         
         # Tabelle für Aufträge
         cursor.execute('''
@@ -88,6 +100,36 @@ def init_db(db_path: Path) -> None:
         raise DatabaseError(f"Fehler beim Initialisieren der Datenbank: {e}")
 
 
+def _get_optimized_connection(db_path: Path, timeout: float = 30.0) -> sqlite3.Connection:
+    """
+    Erstellt eine optimierte Datenbankverbindung für Netzwerkspeicher.
+    
+    Args:
+        db_path: Pfad zur Datenbank
+        timeout: Timeout in Sekunden bei Lock-Konflikten
+    
+    Returns:
+        Optimierte SQLite-Connection
+    """
+    conn = sqlite3.connect(
+        db_path,
+        timeout=timeout,
+        isolation_level='DEFERRED',
+        check_same_thread=False  # Für Multi-Threading
+    )
+    
+    # Performance-Optimierungen
+    conn.execute('PRAGMA journal_mode=WAL')
+    conn.execute('PRAGMA synchronous=NORMAL')
+    conn.execute('PRAGMA cache_size=-64000')  # 64MB
+    conn.execute('PRAGMA temp_store=MEMORY')
+    conn.execute('PRAGMA mmap_size=268435456')  # 256MB
+    conn.execute('PRAGMA busy_timeout=30000')  # 30s Busy-Timeout
+    
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
 def insert_auftrag(
     db_path: Path,
     metadata: Dict[str, Any],
@@ -130,7 +172,7 @@ def insert_auftrag(
             logger.warning(f"   Existierende Einträge: {len(existing)}")
             logger.warning(f"   Neue Datei: {file_path}")
         
-        conn = sqlite3.connect(db_path)
+        conn = _get_optimized_connection(db_path)
         cursor = conn.cursor()
         
         now = datetime.now().isoformat()
@@ -186,8 +228,7 @@ def check_duplicate_hash(db_path: Path, file_hash: str) -> Optional[Dict[str, An
         Dictionary mit dem gefundenen Eintrag oder None
     """
     try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        conn = _get_optimized_connection(db_path)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -222,8 +263,7 @@ def check_duplicate_auftrag_nr(db_path: Path, auftrag_nr: str) -> List[Dict[str,
         Liste von Dictionaries mit gefundenen Aufträgen (kann mehrere sein)
     """
     try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        conn = _get_optimized_connection(db_path)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -260,8 +300,7 @@ def search_by_auftrag_nr(db_path: Path, auftrag_nr: str) -> List[Dict[str, Any]]
         Liste von Dictionaries mit gefundenen Aufträgen
     """
     try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        conn = _get_optimized_connection(db_path)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -294,8 +333,7 @@ def search_by_kunden_nr(db_path: Path, kunden_nr: str) -> List[Dict[str, Any]]:
         Liste von Dictionaries mit gefundenen Aufträgen
     """
     try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        conn = _get_optimized_connection(db_path)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -329,8 +367,7 @@ def search_by_name(db_path: Path, name: str, partial: bool = True) -> List[Dict[
         Liste von Dictionaries mit gefundenen Aufträgen
     """
     try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        conn = _get_optimized_connection(db_path)
         cursor = conn.cursor()
         
         if partial:
@@ -371,8 +408,7 @@ def search_by_datum(db_path: Path, von: str, bis: str) -> List[Dict[str, Any]]:
         Liste von Dictionaries mit gefundenen Aufträgen
     """
     try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        conn = _get_optimized_connection(db_path)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -405,8 +441,7 @@ def search_by_kennzeichen(db_path: Path, kennzeichen: str) -> List[Dict[str, Any
         Liste von Dictionaries mit gefundenen Aufträgen
     """
     try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        conn = _get_optimized_connection(db_path)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -439,8 +474,7 @@ def search_by_keyword(db_path: Path, keyword: str) -> List[Dict[str, Any]]:
         Liste von Dictionaries mit gefundenen Aufträgen
     """
     try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        conn = _get_optimized_connection(db_path)
         cursor = conn.cursor()
         
         # Suche im JSON-Feld (case-insensitive)
@@ -484,7 +518,7 @@ def get_statistics(db_path: Path) -> Dict[str, Any]:
         Dictionary mit Statistiken
     """
     try:
-        conn = sqlite3.connect(db_path)
+        conn = _get_optimized_connection(db_path)
         cursor = conn.cursor()
         
         # Gesamtanzahl Aufträge
@@ -545,8 +579,7 @@ def export_to_csv(db_path: Path, output_path: Path) -> None:
     import csv
     
     try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        conn = _get_optimized_connection(db_path)
         cursor = conn.cursor()
         
         cursor.execute('SELECT * FROM auftraege ORDER BY auftrag_nr')
@@ -584,8 +617,7 @@ def search_by_kunde(db_path: Path, kunde_name: str) -> List[Dict[str, Any]]:
         Liste von Dictionaries mit gefundenen Aufträgen
     """
     try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        conn = _get_optimized_connection(db_path)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -618,8 +650,7 @@ def search_by_vin(db_path: Path, vin: str) -> List[Dict[str, Any]]:
         Liste von Dictionaries mit gefundenen Aufträgen
     """
     try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        conn = _get_optimized_connection(db_path)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -652,8 +683,7 @@ def search_by_vis(db_path: Path, vis: str) -> List[Dict[str, Any]]:
         Liste von Dictionaries mit gefundenen Aufträgen
     """
     try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        conn = _get_optimized_connection(db_path)
         cursor = conn.cursor()
         
         # Suche nach VIN die mit dem VIS endet
@@ -703,8 +733,7 @@ def search_by_month(db_path: Path, monat: str) -> List[Dict[str, Any]]:
         Liste von Dictionaries mit gefundenen Aufträgen
     """
     try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        conn = _get_optimized_connection(db_path)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -737,8 +766,7 @@ def search_by_year(db_path: Path, jahr: str) -> List[Dict[str, Any]]:
         Liste von Dictionaries mit gefundenen Aufträgen
     """
     try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        conn = _get_optimized_connection(db_path)
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -784,8 +812,7 @@ def search_multi_criteria(db_path: Path, criteria: Dict[str, str]) -> List[Dict[
         DatabaseError: Bei Datenbankfehlern
     """
     try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        conn = _get_optimized_connection(db_path)
         cursor = conn.cursor()
         
         # Baue SQL-Query dynamisch basierend auf vorhandenen Kriterien
@@ -868,7 +895,7 @@ def mark_auftrag_complete(db_path: Path, auftrag_id: int) -> bool:
         DatabaseError: Bei Datenbankfehlern
     """
     try:
-        conn = sqlite3.connect(db_path)
+        conn = _get_optimized_connection(db_path)
         cursor = conn.cursor()
         
         # Prüfe ob Spalte existiert, wenn nicht, füge sie hinzu
@@ -931,8 +958,7 @@ def find_matching_vehicle_data(db_path: Path, kennzeichen: Optional[str] = None,
             logger.debug("Keine Suchkriterien für Fahrzeugdaten-Matching angegeben")
             return None
         
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        conn = _get_optimized_connection(db_path)
         cursor = conn.cursor()
         
         # 1. Suche nach VIN (höchste Priorität, da eindeutig)
