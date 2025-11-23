@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Werkstatt-Archiv Web-UI">
+    <title>{% block title %}Werkstatt-Archiv{% endblock %}</title>
+    
+    <!-- Preconnect für schnelleres CDN-Loading -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+    
+    <!-- Bootstrap CSS (Preload für schnelleres Laden) -->
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"></noscript>
+    <!-- Bootstrap Icons (Async Load) -->
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css"></noscript>
+    
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --success-color: #27ae60;
+            --danger-color: #e74c3c;
+            --warning-color: #f39c12;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f8f9fa;
+        }
+        
+        .navbar {
+            background-color: var(--primary-color) !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,.1);
+        }
+        
+        .navbar-brand {
+            font-weight: 600;
+            font-size: 1.3rem;
+        }
+        
+        .nav-link {
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        
+        .nav-link:hover {
+            color: var(--secondary-color) !important;
+        }
+        
+        .nav-link.active {
+            color: #fff !important;
+            background-color: rgba(255,255,255,0.1);
+            border-radius: 4px;
+        }
+        
+        .card {
+            border: none;
+            box-shadow: 0 1px 3px rgba(0,0,0,.1);
+            margin-bottom: 1.5rem;
+            border-radius: 8px;
+        }
+        
+        .card-header {
+            background-color: #fff;
+            border-bottom: 2px solid #e9ecef;
+            font-weight: 600;
+            padding: 1rem 1.25rem;
+        }
+        
+        .stat-card {
+            transition: transform 0.2s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,.15);
+        }
+        
+        .stat-icon {
+            font-size: 2.5rem;
+            opacity: 0.3;
+        }
+        
+        .table {
+            font-size: 0.95rem;
+        }
+        
+        .badge {
+            font-weight: 500;
+            padding: 0.35em 0.65em;
+        }
+        
+        .btn {
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+        }
+        
+        .spinner-border-sm {
+            width: 1rem;
+            height: 1rem;
+            border-width: 0.15em;
+        }
+        
+        .alert {
+            border: none;
+            border-radius: 6px;
+        }
+        
+        .form-control, .form-select {
+            border-radius: 6px;
+        }
+        
+        .log-entry {
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            border-radius: 6px;
+            border-left: 4px solid;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9rem;
+        }
+        
+        .log-entry.success {
+            background-color: #d4edda;
+            border-color: var(--success-color);
+            color: #155724;
+        }
+        
+        .log-entry.error {
+            background-color: #f8d7da;
+            border-color: var(--danger-color);
+            color: #721c24;
+        }
+        
+        .log-entry.info {
+            background-color: #d1ecf1;
+            border-color: var(--secondary-color);
+            color: #0c5460;
+        }
+        
+        .search-result {
+            transition: background-color 0.2s;
+        }
+        
+        .search-result:hover {
+            background-color: #f8f9fa;
+        }
+        
+        footer {
+            margin-top: 3rem;
+            padding: 2rem 0;
+            background-color: var(--primary-color);
+            color: #fff;
+        }
+    </style>
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-archive"></i> Werkstatt-Archiv
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}" href="/">
+                            <i class="bi bi-speedometer2"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'search_page' %}active{% endif %}" href="/search">
+                            <i class="bi bi-search"></i> Suche
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'archive_page' %}active{% endif %}" href="/archive">
+                            <i class="bi bi-folder"></i> Archiv
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'edit_page' %}active{% endif %}" href="/edit">
+                            <i class="bi bi-pencil-square"></i> Daten korrigieren
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'customers_page' %}active{% endif %}" href="/customers">
+                            <i class="bi bi-people"></i> Kundenliste
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'backup_page' %}active{% endif %}" href="/backup">
+                            <i class="bi bi-shield-check"></i> Backup
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'settings' %}active{% endif %}" href="/settings">
+                            <i class="bi bi-gear"></i> Einstellungen
+                        </a>
+                    </li>
+                </ul>
+                <div class="d-flex align-items-center">
+                    <span class="text-light me-3">
+                        <i class="bi bi-circle-fill" id="status-indicator" style="color: #dc3545; font-size: 0.7rem;"></i>
+                        <span id="status-text">Gestoppt</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container-fluid py-4">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-center">
+        <div class="container">
+            <p class="mb-0">&copy; 2025 Werkstatt-Archiv | Automatische PDF-Archivierung mit OCR</p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS (async für bessere Performance) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous" defer></script>
+    
+    <!-- Global JS -->
+    <script>
+        // Status-Polling
+        function updateStatus() {
+            fetch('/api/stats')
+                .then(response => response.json())
+                .then(data => {
+                    const indicator = document.getElementById('status-indicator');
+                    const text = document.getElementById('status-text');
+                    
+                    if (data.watcher_running) {
+                        indicator.style.color = '#27ae60';
+                        text.textContent = 'Aktiv';
+                    } else {
+                        indicator.style.color = '#dc3545';
+                        text.textContent = 'Gestoppt';
+                    }
+                })
+                .catch(error => console.error('Fehler beim Status-Update:', error));
+        }
+        
+        // Update alle 10 Sekunden (reduzierte Frequenz)
+        setInterval(updateStatus, 10000);
+        // Erst nach 2 Sekunden starten, damit Seite zuerst lädt
+        setTimeout(updateStatus, 2000);
+    </script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

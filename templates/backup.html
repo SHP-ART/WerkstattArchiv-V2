@@ -1,0 +1,436 @@
+{% extends "base.html" %}
+
+{% block title %}Backup & Restore - Werkstatt-Archiv{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4"><i class="bi bi-shield-check"></i> Backup & Restore</h2>
+        <p class="text-muted">Verteiltes Backup-System: Jeder Auftrag-Ordner enthält eine CSV-Kopie der Datenbank-Daten.</p>
+    </div>
+</div>
+
+<!-- Status-Übersicht -->
+<div class="row mb-4">
+    <div class="col-lg-4 col-md-6 mb-3">
+        <div class="card border-primary">
+            <div class="card-body text-center">
+                <i class="bi bi-database display-4 text-primary"></i>
+                <h5 class="card-title mt-3">Datenbank</h5>
+                <p class="display-6 mb-0" id="db-count">-</p>
+                <small class="text-muted">Aufträge in DB</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4 col-md-6 mb-3">
+        <div class="card border-success">
+            <div class="card-body text-center">
+                <i class="bi bi-file-earmark-text display-4 text-success"></i>
+                <h5 class="card-title mt-3">CSV-Backups</h5>
+                <p class="display-6 mb-0" id="csv-count">-</p>
+                <small class="text-muted">Backup-Dateien</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4 col-md-6 mb-3">
+        <div class="card border-info">
+            <div class="card-body text-center">
+                <i class="bi bi-clock-history display-4 text-info"></i>
+                <h5 class="card-title mt-3">Letztes Backup</h5>
+                <p class="mb-0" id="last-backup">-</p>
+                <small class="text-muted">Zeitstempel</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Export -->
+<div class="row mb-4">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-cloud-arrow-up"></i> Backup erstellen (Export)</h5>
+            </div>
+            <div class="card-body">
+                <p>Exportiert alle Aufträge aus der Datenbank als CSV-Dateien in ihre Ordner.</p>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> 
+                    <strong>Was passiert:</strong> Für jeden Auftrag wird <code>data.csv</code> + <code>meta.json</code> mit Checksumme erstellt.
+                </div>
+                
+                <div id="export-progress" class="mb-3" style="display: none;">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span id="export-progress-text">Exportiere...</span>
+                        <span id="export-progress-percent">0%</span>
+                    </div>
+                    <div class="progress" style="height: 25px;">
+                        <div id="export-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%">0 / 0</div>
+                    </div>
+                </div>
+                
+                <div id="export-status" class="mb-3" style="display: none;"></div>
+                
+                <button class="btn btn-primary btn-lg" id="btn-export" onclick="doExport()">
+                    <i class="bi bi-cloud-arrow-up"></i> Alle Aufträge sichern
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Verify -->
+<div class="row mb-4">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-shield-check"></i> Backups validieren (Verify)</h5>
+            </div>
+            <div class="card-body">
+                <p>Prüft alle CSV-Dateien auf Integrität (Checksummen, Schema-Version, Duplikate).</p>
+                
+                <div id="verify-progress" class="mb-3" style="display: none;">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span id="verify-progress-text">Validiere...</span>
+                        <span id="verify-progress-percent">0%</span>
+                    </div>
+                    <div class="progress" style="height: 25px;">
+                        <div id="verify-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" style="width: 0%">0 / 0</div>
+                    </div>
+                </div>
+                
+                <div id="verify-status" class="mb-3" style="display: none;"></div>
+                
+                <button class="btn btn-success btn-lg" id="btn-verify" onclick="doVerify()">
+                    <i class="bi bi-shield-check"></i> Backups prüfen
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Restore -->
+<div class="row mb-4">
+    <div class="col-lg-12">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-arrow-clockwise"></i> Datenbank wiederherstellen (Restore)</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle-fill"></i> 
+                    <strong>WARNUNG:</strong> Diese Aktion löscht die aktuelle Datenbank und stellt sie aus den CSV-Dateien wieder her!
+                </div>
+                
+                <p><strong>Wann benötigt:</strong></p>
+                <ul>
+                    <li>Datenbank beschädigt oder gelöscht</li>
+                    <li>Disaster Recovery nach Server-Ausfall</li>
+                    <li>Migration auf neuen Server</li>
+                </ul>
+                
+                <p><strong>Ablauf:</strong></p>
+                <ol>
+                    <li>Alle CSV-Dateien rekursiv finden</li>
+                    <li>Checksummen validieren (via meta.json)</li>
+                    <li>Duplikate erkennen (neueste Version gewinnt)</li>
+                    <li>DB-Tabelle löschen und neu erstellen</li>
+                    <li>Alle Datensätze in Transaktion importieren</li>
+                </ol>
+                
+                <div id="restore-status" class="mb-3" style="display: none;"></div>
+                
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="restore-confirm">
+                    <label class="form-check-label text-danger fw-bold" for="restore-confirm">
+                        Ich verstehe, dass die Datenbank gelöscht wird
+                    </label>
+                </div>
+                
+                <button class="btn btn-danger btn-lg" id="btn-restore" onclick="doRestore()" disabled>
+                    <i class="bi bi-arrow-clockwise"></i> Datenbank wiederherstellen
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Log -->
+<div class="row mb-4">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-file-text"></i> Backup-Log (Letzte 50 Zeilen)</h5>
+            </div>
+            <div class="card-body">
+                <button class="btn btn-sm btn-secondary mb-3" onclick="loadLog()">
+                    <i class="bi bi-arrow-clockwise"></i> Log aktualisieren
+                </button>
+                <pre id="backup-log" class="bg-dark text-light p-3" style="max-height: 400px; overflow-y: auto; font-size: 0.85rem;">Lade Log...</pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function loadStats() {
+        console.log('Lade Backup-Statistiken...');
+        fetch('/api/backup/stats')
+            .then(function(r) { 
+                console.log('Stats Response:', r.status);
+                return r.json(); 
+            })
+            .then(function(data) {
+                console.log('Stats Data:', data);
+                document.getElementById('db-count').textContent = data.db_count || '0';
+                document.getElementById('csv-count').textContent = data.csv_count || '0';
+                
+                if (data.last_backup) {
+                    var date = new Date(data.last_backup);
+                    document.getElementById('last-backup').innerHTML = 
+                        '<strong>' + date.toLocaleDateString('de-DE') + '</strong><br>' +
+                        '<small>' + date.toLocaleTimeString('de-DE') + '</small>';
+                } else {
+                    document.getElementById('last-backup').textContent = 'Noch nie';
+                }
+                console.log('✓ Stats geladen');
+            })
+            .catch(function(e) {
+                console.error('Fehler beim Laden der Stats:', e);
+                document.getElementById('db-count').textContent = 'Fehler';
+                document.getElementById('csv-count').textContent = 'Fehler';
+                document.getElementById('last-backup').textContent = 'Fehler: ' + e.message;
+            });
+    }
+    
+    function loadLog() {
+        fetch('/api/backup/log')
+            .then(function(r) { return r.text(); })
+            .then(function(log) {
+                document.getElementById('backup-log').textContent = log || 'Keine Log-Einträge';
+            })
+            .catch(function(e) {
+                document.getElementById('backup-log').textContent = 'Fehler beim Laden: ' + e;
+            });
+    }
+    
+    var exportInterval = null;
+    
+    function doExport() {
+        var btn = document.getElementById('btn-export');
+        var progress = document.getElementById('export-progress');
+        var status = document.getElementById('export-status');
+        
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Exportiere...';
+        
+        progress.style.display = 'block';
+        status.style.display = 'none';
+        
+        // Simuliere Fortschritt (da Backend keine echte Progress-API hat)
+        var fakeProgress = 0;
+        var totalItems = parseInt(document.getElementById('db-count').textContent) || 100;
+        
+        exportInterval = setInterval(function() {
+            if (fakeProgress < 90) {
+                fakeProgress += Math.random() * 10;
+                updateProgress('export', Math.min(fakeProgress, 90), totalItems);
+            }
+        }, 500);
+        
+        fetch('/api/backup/export', { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                clearInterval(exportInterval);
+                updateProgress('export', 100, data.stats.exported || totalItems);
+                
+                setTimeout(function() {
+                    progress.style.display = 'none';
+                    
+                    if (data.success) {
+                        status.style.display = 'block';
+                        status.className = 'alert alert-success';
+                        status.innerHTML = 
+                            '<i class="bi bi-check-circle"></i> <strong>Export erfolgreich!</strong><br>' +
+                            'Exportiert: ' + data.stats.exported + '<br>' +
+                            'Fehler: ' + data.stats.errors + '<br>' +
+                            'Dauer: ' + Math.round(data.stats.duration || 0) + ' Sekunden';
+                        
+                        loadStats();
+                        loadLog();
+                    } else {
+                        throw new Error(data.error || 'Unbekannter Fehler');
+                    }
+                }, 500);
+            })
+            .catch(function(e) {
+                clearInterval(exportInterval);
+                progress.style.display = 'none';
+                status.style.display = 'block';
+                status.className = 'alert alert-danger';
+                status.innerHTML = '<i class="bi bi-x-circle"></i> <strong>Fehler:</strong> ' + e;
+            })
+            .finally(function() {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-cloud-arrow-up"></i> Alle Aufträge sichern';
+            });
+    }
+    
+    function updateProgress(type, percent, current) {
+        var total = parseInt(document.getElementById('db-count').textContent) || 100;
+        var actualCurrent = Math.round((percent / 100) * total);
+        
+        document.getElementById(type + '-progress-bar').style.width = percent + '%';
+        document.getElementById(type + '-progress-bar').textContent = actualCurrent + ' / ' + total;
+        document.getElementById(type + '-progress-percent').textContent = Math.round(percent) + '%';
+    }
+    
+    var verifyInterval = null;
+    
+    function doVerify() {
+        var btn = document.getElementById('btn-verify');
+        var progress = document.getElementById('verify-progress');
+        var status = document.getElementById('verify-status');
+        
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Validiere...';
+        
+        progress.style.display = 'block';
+        status.style.display = 'none';
+        
+        // Simuliere Fortschritt
+        var fakeProgress = 0;
+        var csvCount = parseInt(document.getElementById('csv-count').textContent) || 100;
+        
+        verifyInterval = setInterval(function() {
+            if (fakeProgress < 90) {
+                fakeProgress += Math.random() * 10;
+                updateProgress('verify', Math.min(fakeProgress, 90), csvCount);
+            }
+        }, 500);
+        
+        fetch('/api/backup/verify', { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                clearInterval(verifyInterval);
+                updateProgress('verify', 100, data.stats.found || csvCount);
+                
+                setTimeout(function() {
+                    progress.style.display = 'none';
+                    
+                    if (data.success) {
+                        var hasErrors = data.stats.errors > 0;
+                        status.style.display = 'block';
+                        status.className = hasErrors ? 'alert alert-warning' : 'alert alert-success';
+                        status.innerHTML = 
+                            '<i class="bi bi-' + (hasErrors ? 'exclamation-triangle' : 'check-circle') + '"></i> <strong>Validierung abgeschlossen!</strong><br>' +
+                            'Gefunden: ' + data.stats.found + '<br>' +
+                            'Valide: ' + data.stats.valid + '<br>' +
+                            'Duplikate: ' + data.stats.duplicates + '<br>' +
+                            'Fehler: ' + data.stats.errors + '<br>' +
+                            'Dauer: ' + Math.round(data.stats.duration || 0) + ' Sekunden';
+                        
+                        loadLog();
+                    } else {
+                        throw new Error(data.error || 'Unbekannter Fehler');
+                    }
+                }, 500);
+            })
+            .catch(function(e) {
+                clearInterval(verifyInterval);
+                progress.style.display = 'none';
+                status.style.display = 'block';
+                status.className = 'alert alert-danger';
+                status.innerHTML = '<i class="bi bi-x-circle"></i> <strong>Fehler:</strong> ' + e;
+            })
+            .finally(function() {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-shield-check"></i> Backups prüfen';
+            });
+    }
+    
+    var restoreInterval = null;
+    
+    function doRestore() {
+        if (!confirm('LETZTE WARNUNG: Die gesamte Datenbank wird gelöscht und aus CSV-Dateien wiederhergestellt!\n\nFortfahren?')) {
+            return;
+        }
+        
+        var btn = document.getElementById('btn-restore');
+        var progress = document.getElementById('restore-progress');
+        var status = document.getElementById('restore-status');
+        
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Stelle wieder her...';
+        
+        progress.style.display = 'block';
+        status.style.display = 'none';
+        
+        // Simuliere Fortschritt
+        var fakeProgress = 0;
+        var csvCount = parseInt(document.getElementById('csv-count').textContent) || 100;
+        
+        restoreInterval = setInterval(function() {
+            if (fakeProgress < 85) {
+                fakeProgress += Math.random() * 8;
+                updateProgress('restore', Math.min(fakeProgress, 85), csvCount);
+            }
+        }, 600);
+        
+        fetch('/api/backup/restore', { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                clearInterval(restoreInterval);
+                updateProgress('restore', 100, data.stats.imported || csvCount);
+                
+                setTimeout(function() {
+                    progress.style.display = 'none';
+                    
+                    if (data.success) {
+                        status.style.display = 'block';
+                        status.className = 'alert alert-success';
+                        status.innerHTML = 
+                            '<i class="bi bi-check-circle"></i> <strong>Wiederherstellung erfolgreich!</strong><br>' +
+                            'Gefunden: ' + data.stats.found + '<br>' +
+                            'Importiert: ' + data.stats.imported + '<br>' +
+                            'Duplikate: ' + data.stats.duplicates + '<br>' +
+                            'Fehler: ' + data.stats.errors + '<br>' +
+                            'Dauer: ' + Math.round(data.stats.duration || 0) + ' Sekunden';
+                        
+                        loadStats();
+                        loadLog();
+                        document.getElementById('restore-confirm').checked = false;
+                    } else {
+                        throw new Error(data.error || 'Unbekannter Fehler');
+                    }
+                }, 500);
+            })
+            .catch(function(e) {
+                clearInterval(restoreInterval);
+                progress.style.display = 'none';
+                status.style.display = 'block';
+                status.className = 'alert alert-danger';
+                status.innerHTML = '<i class="bi bi-x-circle"></i> <strong>Fehler:</strong> ' + e;
+            })
+            .finally(function() {
+                btn.disabled = true; // Bleibt disabled bis Checkbox neu gesetzt
+                btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Datenbank wiederherstellen';
+            });
+    }
+    
+    // Initialisierung beim Laden
+    window.addEventListener('DOMContentLoaded', function() {
+        loadStats();
+        loadLog();
+        
+        // Restore-Button Aktivierung
+        document.getElementById('restore-confirm').addEventListener('change', function() {
+            document.getElementById('btn-restore').disabled = !this.checked;
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,655 @@
+{% extends "base.html" %}
+
+{% block title %}Daten korrigieren - Werkstatt-Archiv{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4"><i class="bi bi-pencil-square"></i> Daten korrigieren</h2>
+        <p class="text-muted">Ergänzen oder korrigieren Sie fehlende/fehlerhafte Daten aus der OCR-Erkennung.</p>
+    </div>
+</div>
+
+<!-- Auftrag auswählen -->
+<div class="row mb-4">
+    <div class="col-lg-10 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-search"></i> Auftrag suchen</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-8">
+                        <label for="search-auftrag" class="form-label">Auftragsnummer oder Kundenname</label>
+                        <input type="text" class="form-control form-control-lg" id="search-auftrag" placeholder="z.B. 76329 oder Müller">
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="button" class="btn btn-primary btn-lg w-100" onclick="doSearchAuftraege()">
+                            <i class="bi bi-search"></i> Suchen
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="search-results" class="mt-3" style="display: none;">
+                    <hr>
+                    <h6>Suchergebnisse:</h6>
+                    <div class="list-group" id="results-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Aufträge mit fehlenden Daten -->
+<div class="row mb-4">
+    <div class="col-lg-10 mx-auto">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Aufträge mit fehlenden Daten</h5>
+            </div>
+            <div class="card-body">
+                <div id="incomplete-auftraege-loading" class="text-center py-3">
+                    <div class="spinner-border text-warning" role="status">
+                        <span class="visually-hidden">Lade...</span>
+                    </div>
+                </div>
+                <div id="incomplete-auftraege-list" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Korrektur-Formular mit PDF-Viewer -->
+<div class="row" id="edit-form-container" style="display: none;">
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-pencil"></i> Daten bearbeiten</h5>
+                <button type="button" class="btn btn-sm btn-light" onclick="doResetForm()">
+                    <i class="bi bi-x-circle"></i> Abbrechen
+                </button>
+            </div>
+            <div class="card-body">
+                <!-- Auto-Vervollständigung Alert -->
+                <div id="auto-suggest-alert" class="alert alert-info alert-dismissible fade show" style="display: none;">
+                    <strong><i class="bi bi-lightbulb"></i> Vorschlag gefunden!</strong>
+                    <p id="suggest-message" class="mb-2"></p>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="applyAutoSuggestions()">
+                        <i class="bi bi-check-circle"></i> Daten übernehmen
+                    </button>
+                    <button type="button" class="btn btn-sm btn-secondary" onclick="dismissAutoSuggestions()">
+                        Ignorieren
+                    </button>
+                </div>
+                
+                <form id="edit-form" onsubmit="return doSaveAuftrag(event)">
+                    <input type="hidden" id="edit-id">
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label"><i class="bi bi-hash"></i> Auftragsnummer</label>
+                            <input type="text" class="form-control" id="edit-auftrag-nr" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label"><i class="bi bi-person-badge"></i> Kundennummer</label>
+                            <input type="text" class="form-control" id="edit-kunden-nr">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label"><i class="bi bi-person"></i> Kundenname</label>
+                        <input type="text" class="form-control" id="edit-name">
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label"><i class="bi bi-calendar"></i> Datum</label>
+                            <input type="date" class="form-control" id="edit-datum">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label"><i class="bi bi-car-front"></i> Kennzeichen</label>
+                            <input type="text" class="form-control" id="edit-kennzeichen">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label"><i class="bi bi-upc"></i> VIN</label>
+                            <input type="text" class="form-control" id="edit-vin" maxlength="17">
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between align-items-center">
+                        <button type="button" class="btn btn-secondary" onclick="doResetForm()">Abbrechen</button>
+                        <div>
+                            <button type="button" class="btn btn-warning me-2" onclick="doRescanPDF()" title="PDF erneut mit OCR verarbeiten">
+                                <i class="bi bi-arrow-clockwise"></i> PDF neu scannen
+                            </button>
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="bi bi-check-lg"></i> Speichern
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-file-pdf"></i> PDF-Vorschau</h5>
+                <button type="button" class="btn btn-sm btn-light" id="btn-download-pdf" style="display: none;" onclick="downloadCurrentPDF()">
+                    <i class="bi bi-download"></i> Download
+                </button>
+            </div>
+            <div class="card-body p-0" style="min-height: 600px;">
+                <iframe id="pdf-viewer" style="width: 100%; height: 600px; border: none;"></iframe>
+                <div id="pdf-loading" class="text-center py-5" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Lade PDF...</span>
+                    </div>
+                    <p class="mt-3">PDF wird geladen...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Messages -->
+<div class="position-fixed top-0 end-0 p-3" style="z-index: 11">
+    <div id="toast-success" class="toast align-items-center text-white bg-success border-0">
+        <div class="d-flex">
+            <div class="toast-body">Erfolgreich gespeichert!</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    </div>
+    <div id="toast-error" class="toast align-items-center text-white bg-danger border-0">
+        <div class="d-flex">
+            <div class="toast-body" id="toast-error-message">Fehler!</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    'use strict';
+    
+    window.currentAuftragId = null;
+    window.currentSuggestions = null;
+    
+    // Auto-load beim Seitenstart
+    window.addEventListener('DOMContentLoaded', function() {
+        doLoadIncompleteAuftraege();
+    });
+    
+    // Suche mit Enter-Taste
+    document.addEventListener('DOMContentLoaded', function() {
+        var searchInput = document.getElementById('search-auftrag');
+        if (searchInput) {
+            searchInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    doSearchAuftraege();
+                }
+            });
+        }
+    });
+    
+    window.doLoadIncompleteAuftraege = function() {
+        fetch('/api/archive/incomplete')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var loading = document.getElementById('incomplete-auftraege-loading');
+                var list = document.getElementById('incomplete-auftraege-list');
+                loading.style.display = 'none';
+                
+                if (data.results && data.results.length > 0) {
+                    var html = '<div class="list-group">';
+                    for (var i = 0; i < data.results.length; i++) {
+                        var item = data.results[i];
+                        var missing = [];
+                        if (!item.kunde_name || item.kunde_name === 'N/A') missing.push('Name');
+                        if (!item.kennzeichen || item.kennzeichen === 'N/A') missing.push('KZ');
+                        if (!item.vin) missing.push('VIN');
+                        if (!item.datum) missing.push('Datum');
+                        if (!item.kunden_nr) missing.push('Kd.Nr.');
+                        
+                        html += '<div class="list-group-item list-group-item-warning d-flex justify-content-between">';
+                        html += '<a href="#" class="flex-grow-1 text-decoration-none" onclick="doLoadAuftrag(' + item.id + '); return false;">';
+                        html += '<strong>' + item.auftrag_nr + '</strong> - ' + (item.kunde_name || 'Kein Name');
+                        html += '<br><small>Fehlend: ' + missing.join(', ') + '</small>';
+                        html += '</a>';
+                        html += '<button class="btn btn-sm btn-success" onclick="doMarkComplete(' + item.id + ', \'' + item.auftrag_nr + '\'); event.stopPropagation();">';
+                        html += '<i class="bi bi-check-lg"></i>';
+                        html += '</button>';
+                        html += '</div>';
+                    }
+                    html += '</div>';
+                    list.innerHTML = html;
+                } else {
+                    list.innerHTML = '<div class="alert alert-success">Alle Aufträge vollständig!</div>';
+                }
+                list.style.display = 'block';
+            })
+            .catch(function(e) {
+                document.getElementById('incomplete-auftraege-loading').innerHTML = 
+                    '<div class="alert alert-danger">Fehler: ' + e + '</div>';
+            });
+    };
+    
+    window.doSearchAuftraege = function() {
+        var query = document.getElementById('search-auftrag').value.trim();
+        if (!query) {
+            alert('Bitte Suchbegriff eingeben!');
+            return;
+        }
+        
+        Promise.all([
+            fetch('/api/search', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({type: 'auftrag', query: query})
+            }).then(function(r) { return r.json(); }),
+            fetch('/api/search', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({type: 'kunde', query: query})
+            }).then(function(r) { return r.json(); })
+        ]).then(function(results) {
+            var r1 = results[0];
+            var r2 = results[1];
+            var allResults = r1.results.concat(r2.results);
+            
+            // Duplikate entfernen
+            var seen = {};
+            var unique = [];
+            for (var i = 0; i < allResults.length; i++) {
+                if (!seen[allResults[i].id]) {
+                    seen[allResults[i].id] = true;
+                    unique.push(allResults[i]);
+                }
+            }
+            
+            var html = '';
+            if (unique.length === 0) {
+                html = '<div class="alert alert-warning">Keine Aufträge gefunden</div>';
+            } else {
+                for (var j = 0; j < unique.length; j++) {
+                    var item = unique[j];
+                    html += '<a href="#" class="list-group-item list-group-item-action" onclick="doLoadAuftrag(' + item.id + '); return false;">';
+                    html += '<strong>' + (item.auftrag_nr || '') + '</strong> - ' + (item.kunde_name || 'Kein Name') + '<br>';
+                    var kz = item.kennzeichen || '-';
+                    var vinStr = item.vin || '-';
+                    html += '<small>KZ: ' + kz + ' | VIN: ' + vinStr + '</small>';
+                    html += '</a>';
+                }
+            }
+            document.getElementById('results-list').innerHTML = html;
+            document.getElementById('search-results').style.display = 'block';
+        });
+    };
+    window.doLoadAuftrag = function(id) {
+        window.currentAuftragId = id;
+        window.currentSuggestions = null;
+        
+        // Alert verstecken
+        document.getElementById('auto-suggest-alert').style.display = 'none';
+        
+        fetch('/api/archive/detail/' + id)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                document.getElementById('edit-id').value = data.id || '';
+                document.getElementById('edit-auftrag-nr').value = data.auftrag_nr || '';
+                document.getElementById('edit-kunden-nr').value = data.kunden_nr || '';
+                document.getElementById('edit-name').value = data.kunde_name || '';
+                document.getElementById('edit-datum').value = data.datum || '';
+                document.getElementById('edit-kennzeichen').value = (data.kennzeichen || '');
+                document.getElementById('edit-vin').value = (data.vin || '');
+                
+                // Lade Auto-Vervollständigungs-Vorschläge
+                loadAutoSuggestions(id);
+                
+                // PDF laden mit Fehlerbehandlung und Cache-Buster
+                var pdfUrl = '/api/archive/view/' + id + '?t=' + new Date().getTime();
+                console.log('Lade PDF von:', pdfUrl);
+                var pdfViewer = document.getElementById('pdf-viewer');
+                
+                // Download-Button anzeigen
+                document.getElementById('btn-download-pdf').style.display = 'inline-block';
+                
+                // Loading-Indicator
+                document.getElementById('pdf-loading').style.display = 'block';
+                pdfViewer.style.display = 'none';
+                
+                pdfViewer.onload = function() {
+                    console.log('PDF erfolgreich geladen');
+                    document.getElementById('pdf-loading').style.display = 'none';
+                    pdfViewer.style.display = 'block';
+                };
+                
+                pdfViewer.onerror = function() {
+                    console.error('PDF konnte nicht geladen werden:', pdfUrl);
+                    document.getElementById('pdf-loading').style.display = 'none';
+                    pdfViewer.style.display = 'none';
+                    alert('PDF-Vorschau nicht verfügbar. Nutzen Sie den Download-Button.');
+                };
+                
+                pdfViewer.src = pdfUrl;
+                
+                document.getElementById('edit-form-container').style.display = 'flex';
+                document.getElementById('edit-form-container').scrollIntoView({behavior: 'smooth'});
+            })
+            .catch(function(e) {
+                console.error('Fehler beim Laden des Auftrags:', e);
+                alert('Fehler beim Laden des Auftrags: ' + e);
+            });
+    };
+    
+    window.doSaveAuftrag = function(e) {
+        e.preventDefault();
+        var data = {
+            id: document.getElementById('edit-id').value,
+            auftrag_nr: document.getElementById('edit-auftrag-nr').value,
+            kunden_nr: document.getElementById('edit-kunden-nr').value || null,
+            kunde_name: document.getElementById('edit-name').value || null,
+            datum: document.getElementById('edit-datum').value || null,
+            kennzeichen: document.getElementById('edit-kennzeichen').value || null,
+            vin: document.getElementById('edit-vin').value || null
+        };
+        
+        fetch('/api/archive/update', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(result) {
+            if (result.success) {
+                var toast = new bootstrap.Toast(document.getElementById('toast-success'));
+                toast.show();
+                setTimeout(function() {
+                    doResetForm();
+                    doLoadIncompleteAuftraege();
+                }, 2000);
+            } else {
+                throw new Error(result.error);
+            }
+        })
+        .catch(function(e) {
+            document.getElementById('toast-error-message').textContent = 'Fehler: ' + e;
+            var toast = new bootstrap.Toast(document.getElementById('toast-error'));
+            toast.show();
+        });
+        
+        return false;
+    };
+    
+    window.doResetForm = function() {
+        document.getElementById('edit-form').reset();
+        document.getElementById('edit-form-container').style.display = 'none';
+        document.getElementById('search-results').style.display = 'none';
+        document.getElementById('pdf-viewer').src = 'about:blank';
+        document.getElementById('btn-download-pdf').style.display = 'none';
+        window.currentAuftragId = null;
+    };
+    
+    window.downloadCurrentPDF = function() {
+        if (window.currentAuftragId) {
+            window.open('/api/archive/download/' + window.currentAuftragId, '_blank');
+        }
+    };
+    
+    window.doMarkComplete = function(id, nr) {
+        if (!confirm('Auftrag ' + nr + ' als vollständig markieren?')) {
+            return;
+        }
+        
+        fetch('/api/archive/mark-complete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({id: id})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(result) {
+            if (result.success) {
+                var toast = new bootstrap.Toast(document.getElementById('toast-success'));
+                toast.show();
+                doLoadIncompleteAuftraege();
+            }
+        });
+    };
+    
+    // Auto-Vervollständigungs-Funktionen
+    function loadAutoSuggestions(auftragId) {
+        fetch('/api/archive/suggest-data/' + auftragId)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.matched && Object.keys(data.suggestions).length > 0) {
+                    window.currentSuggestions = data;
+                    showAutoSuggestionAlert(data);
+                } else {
+                    console.log('Keine Vorschläge gefunden für Auftrag', auftragId);
+                }
+            })
+            .catch(function(e) {
+                console.error('Fehler beim Laden von Vorschlägen:', e);
+            });
+    }
+    
+    function showAutoSuggestionAlert(data) {
+        var fields = Object.keys(data.suggestions);
+        var fieldNames = {
+            'kunde_name': 'Name',
+            'kunden_nr': 'Kundennr.',
+            'kennzeichen': 'Kennzeichen',
+            'vin': 'VIN'
+        };
+        
+        var matchSource = data.match_source || 'unbekannt';
+        var message = 'Daten aus früherem Auftrag <strong>' + data.source_auftrag + '</strong> gefunden (via ' + matchSource + '):<br><br>';
+        
+        // Zeige alle vorgeschlagenen Werte mit Details
+        message += '<div class="mt-2">';
+        fields.forEach(function(field) {
+            var label = fieldNames[field] || field;
+            var value = data.suggestions[field];
+            message += '<div class="mb-1">';
+            message += '<span class="badge bg-secondary">' + label + '</span> ';
+            message += '<strong>' + value + '</strong>';
+            message += '</div>';
+        });
+        message += '</div>';
+        
+        document.getElementById('suggest-message').innerHTML = message;
+        document.getElementById('auto-suggest-alert').style.display = 'block';
+    }
+    
+    window.applyAutoSuggestions = function() {
+        if (!window.currentSuggestions) return;
+        
+        var suggestions = window.currentSuggestions.suggestions;
+        
+        // WICHTIG: Übernehme nur leere Felder, niemals Auftragsnummer!
+        // Auftragsnummer ist readonly und wird nie überschrieben
+        
+        // Bei OCR-Rescan: Überschreibe immer (auch wenn Feld gefüllt)
+        var isRescan = window.currentSuggestions && window.currentSuggestions.match_source === 'ocr_rescan';
+        
+        if (suggestions.kunde_name) {
+            if (isRescan || !document.getElementById('edit-name').value) {
+                document.getElementById('edit-name').value = suggestions.kunde_name;
+            }
+        }
+        if (suggestions.kunden_nr) {
+            if (isRescan || !document.getElementById('edit-kunden-nr').value) {
+                document.getElementById('edit-kunden-nr').value = suggestions.kunden_nr;
+            }
+        }
+        if (suggestions.datum) {
+            if (isRescan || !document.getElementById('edit-datum').value) {
+                document.getElementById('edit-datum').value = suggestions.datum;
+            }
+        }
+        if (suggestions.kennzeichen) {
+            if (isRescan || !document.getElementById('edit-kennzeichen').value) {
+                document.getElementById('edit-kennzeichen').value = suggestions.kennzeichen;
+            }
+        }
+        if (suggestions.vin) {
+            if (isRescan || !document.getElementById('edit-vin').value) {
+                document.getElementById('edit-vin').value = suggestions.vin;
+            }
+        }
+        
+        // Alert ausblenden
+        document.getElementById('auto-suggest-alert').style.display = 'none';
+        
+        // Wenn Auftragsnummer dabei war, lade Seite neu (da Ordner verschoben wurde)
+        if (suggestions.auftrag_nr) {
+            alert('✓ Auftragsnummer geändert!\n\nAlt: ' + document.getElementById('edit-auftrag-nr').value + '\nNeu: ' + suggestions.auftrag_nr + '\n\nOrdner wurde automatisch umbenannt.\nSeite wird neu geladen...');
+            // Hard reload mit Cache-Buster um neues PDF zu laden
+            window.location.reload(true);
+            return;
+        }
+        
+        // Feedback
+        var toast = new bootstrap.Toast(document.getElementById('toast-success'));
+        document.querySelector('#toast-success .toast-body').textContent = 'Daten übernommen!';
+        toast.show();
+        
+        // Text zurücksetzen nach 2 Sekunden
+        setTimeout(function() {
+            document.querySelector('#toast-success .toast-body').textContent = 'Erfolgreich gespeichert!';
+        }, 2000);
+    };
+    
+    window.dismissAutoSuggestions = function() {
+        document.getElementById('auto-suggest-alert').style.display = 'none';
+        window.currentSuggestions = null;
+    };
+    
+    window.doRescanPDF = function() {
+        var auftragId = document.getElementById('edit-id').value;
+        var auftragNr = document.getElementById('edit-auftrag-nr').value;
+        
+        if (!auftragId) {
+            alert('Kein Auftrag ausgewählt');
+            return;
+        }
+        
+        if (!confirm('PDF-Datei von Auftrag ' + auftragNr + ' erneut mit OCR verarbeiten?\n\n✓ Neu erkannte Daten werden als Vorschlag angezeigt\n✓ Du kannst die Vorschläge prüfen und dann übernehmen\n✓ Nichts wird automatisch ersetzt')) {
+            return;
+        }
+        
+        var btn = event.target.closest('button');
+        var originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Scannt...';
+        
+        // Sichere aktuelle Werte
+        var currentValues = {
+            kunden_nr: document.getElementById('edit-kunden-nr').value,
+            kunde_name: document.getElementById('edit-name').value,
+            datum: document.getElementById('edit-datum').value,
+            kennzeichen: document.getElementById('edit-kennzeichen').value,
+            vin: document.getElementById('edit-vin').value
+        };
+        
+        fetch('/api/archive/reprocess/' + auftragId, {
+            method: 'POST'
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+            
+            if (data.error) {
+                alert('Fehler beim Neu-Scannen: ' + data.error);
+                return;
+            }
+            
+            // Lade neue Daten vom Server
+            fetch('/api/archive/detail/' + auftragId)
+                .then(function(r) { return r.json(); })
+                .then(function(newData) {
+                    // Erstelle Vorschlag-Objekt mit neuen Werten
+                    var suggestions = {};
+                    var fieldNames = {
+                        'auftrag_nr': 'Auftragsnr.',
+                        'kunden_nr': 'Kundennr.',
+                        'kunde_name': 'Name',
+                        'datum': 'Datum',
+                        'kennzeichen': 'Kennzeichen',
+                        'vin': 'VIN'
+                    };
+                    
+                    // Prüfe Auftragsnummer (wenn geändert)
+                    if (data.changed && data.new_auftrag_nr !== currentValues.auftrag_nr) {
+                        suggestions.auftrag_nr = data.new_auftrag_nr;
+                    }
+                    
+                    // Vergleiche alte mit neuen Werten
+                    if (newData.kunden_nr && newData.kunden_nr !== currentValues.kunden_nr) {
+                        suggestions.kunden_nr = newData.kunden_nr;
+                    }
+                    if (newData.kunde_name && newData.kunde_name !== currentValues.kunde_name) {
+                        suggestions.kunde_name = newData.kunde_name;
+                    }
+                    if (newData.datum && newData.datum !== currentValues.datum) {
+                        suggestions.datum = newData.datum;
+                    }
+                    if (newData.kennzeichen && newData.kennzeichen !== currentValues.kennzeichen) {
+                        suggestions.kennzeichen = newData.kennzeichen;
+                    }
+                    if (newData.vin && newData.vin !== currentValues.vin) {
+                        suggestions.vin = newData.vin;
+                    }
+                    
+                    if (Object.keys(suggestions).length === 0) {
+                        alert('Keine neuen Daten erkannt.\nDie gescannten Werte sind identisch mit den vorhandenen.');
+                        return;
+                    }
+                    
+                    // Zeige Vorschlag-Alert mit neuen Daten
+                    var message = 'PDF neu gescannt - folgende Daten wurden erkannt:<br><br>';
+                    message += '<div class="mt-2">';
+                    Object.keys(suggestions).forEach(function(field) {
+                        var label = fieldNames[field] || field;
+                        var oldValue = currentValues[field] || '<em>leer</em>';
+                        var newValue = suggestions[field];
+                        message += '<div class="mb-2">';
+                        message += '<span class="badge bg-secondary">' + label + '</span><br>';
+                        message += '<small class="text-muted">Alt: ' + oldValue + '</small><br>';
+                        message += '<strong class="text-success">Neu: ' + newValue + '</strong>';
+                        message += '</div>';
+                    });
+                    message += '</div>';
+                    
+                    // Speichere Vorschläge für Übernahme-Button
+                    window.currentSuggestions = {
+                        suggestions: suggestions,
+                        matched: true,
+                        match_source: 'ocr_rescan',
+                        source_auftrag: auftragNr
+                    };
+                    
+                    // Zeige Alert
+                    document.getElementById('suggest-message').innerHTML = message;
+                    document.getElementById('auto-suggest-alert').style.display = 'block';
+                    
+                    // Scroll zu Alert
+                    document.getElementById('auto-suggest-alert').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+                })
+                .catch(function(e) {
+                    alert('Fehler beim Laden der neuen Daten: ' + e);
+                });
+        })
+        .catch(function(e) {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+            alert('Fehler beim Neu-Scannen: ' + e);
+        });
+    };
+})();
+</script>
+{% endblock %}

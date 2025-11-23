@@ -1,0 +1,462 @@
+{% extends "base.html" %}
+
+{% block title %}Suche - Werkstatt-Archiv{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4"><i class="bi bi-search"></i> Suche</h2>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <!-- Suchformular -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <!-- Tabs für Suchtyp-Auswahl -->
+                <ul class="nav nav-tabs mb-3" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="tab-simple" data-bs-toggle="tab" data-bs-target="#simple-search" type="button" role="tab">
+                            <i class="bi bi-search"></i> Einfache Suche
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="tab-multi" data-bs-toggle="tab" data-bs-target="#multi-search" type="button" role="tab">
+                            <i class="bi bi-funnel"></i> Multi-Kriterien
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <!-- Einfache Suche -->
+                    <div class="tab-pane fade show active" id="simple-search" role="tabpanel">
+                        <form id="search-form">
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label for="search-type" class="form-label">Suchtyp</label>
+                                    <select class="form-select" id="search-type" name="type">
+                                        <option value="auftrag">Auftragsnummer</option>
+                                        <option value="kunde">Kundenname</option>
+                                        <option value="kennzeichen">Kennzeichen</option>
+                                        <option value="vin">VIN (komplett)</option>
+                                        <option value="vis">VIS (letzte 6 Zeichen)</option>
+                                        <option value="keyword">Schlagwort</option>
+                                        <option value="datum">Datum</option>
+                                        <option value="monat">Monat (YYYY-MM)</option>
+                                        <option value="jahr">Jahr (YYYY)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-5">
+                                    <label for="search-query" class="form-label">Suchbegriff</label>
+                                    <input type="text" class="form-control form-control-lg" id="search-query" name="query" placeholder="z.B. 76329" required>
+                                    <div class="form-text" id="search-hint">Auftragsnummer eingeben</div>
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="search-sort" class="form-label">Sortierung</label>
+                                    <select class="form-select" id="search-sort" name="sort">
+                                        <option value="datum_desc">Datum ↓</option>
+                                        <option value="datum_asc">Datum ↑</option>
+                                        <option value="auftrag_desc">Auftrag ↓</option>
+                                        <option value="auftrag_asc">Auftrag ↑</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2 d-flex align-items-end">
+                                    <button type="submit" class="btn btn-primary btn-lg w-100">
+                                        <i class="bi bi-search"></i> Suchen
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Multi-Kriterien-Suche -->
+                    <div class="tab-pane fade" id="multi-search" role="tabpanel">
+                        <form id="multi-search-form">
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label for="multi-auftrag" class="form-label">Auftragsnummer</label>
+                                    <input type="text" class="form-control" id="multi-auftrag" name="auftrag_nr" placeholder="z.B. 76329">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="multi-kunde" class="form-label">Kundenname</label>
+                                    <input type="text" class="form-control" id="multi-kunde" name="kunde_name" placeholder="z.B. Müller">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="multi-kz" class="form-label">Kennzeichen</label>
+                                    <input type="text" class="form-control" id="multi-kz" name="kennzeichen" placeholder="z.B. SFB">
+                                </div>
+                            </div>
+                            <div class="row g-3 mt-2">
+                                <div class="col-md-4">
+                                    <label for="multi-vin" class="form-label">VIN</label>
+                                    <input type="text" class="form-control" id="multi-vin" name="vin" placeholder="z.B. WDB">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="multi-jahr" class="form-label">Jahr</label>
+                                    <input type="text" class="form-control" id="multi-jahr" name="jahr" placeholder="z.B. 2024">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="multi-monat" class="form-label">Monat</label>
+                                    <input type="text" class="form-control" id="multi-monat" name="monat" placeholder="z.B. 2024-07">
+                                </div>
+                            </div>
+                            <div class="row g-3 mt-2">
+                                <div class="col-md-4">
+                                    <label for="multi-datum-von" class="form-label">Datum von</label>
+                                    <input type="date" class="form-control" id="multi-datum-von" name="datum_von">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="multi-datum-bis" class="form-label">Datum bis</label>
+                                    <input type="date" class="form-control" id="multi-datum-bis" name="datum_bis">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="multi-keyword" class="form-label">Schlagwort</label>
+                                    <input type="text" class="form-control" id="multi-keyword" name="keyword" placeholder="z.B. Garantie">
+                                </div>
+                            </div>
+                            <div class="row g-3 mt-3">
+                                <div class="col-md-10">
+                                    <label for="multi-sort" class="form-label">Sortierung</label>
+                                    <select class="form-select" id="multi-sort" name="sort">
+                                        <option value="datum_desc">Datum ↓</option>
+                                        <option value="datum_asc">Datum ↑</option>
+                                        <option value="auftrag_desc">Auftrag ↓</option>
+                                        <option value="auftrag_asc">Auftrag ↑</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2 d-flex align-items-end">
+                                    <button type="submit" class="btn btn-primary w-100">
+                                        <i class="bi bi-funnel"></i> Filtern
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-12">
+                                    <small class="text-muted">
+                                        <i class="bi bi-info-circle"></i> Alle ausgefüllten Felder werden UND-verknüpft. Leere Felder werden ignoriert.
+                                    </small>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Suchergebnisse -->
+        <div id="results-container" style="display: none;">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>
+                        <i class="bi bi-list-check"></i> Suchergebnisse: <strong id="result-count">0</strong> Treffer
+                    </span>
+                    <button class="btn btn-sm btn-outline-secondary" id="btn-clear-results">
+                        <i class="bi bi-x-circle"></i> Zurücksetzen
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Auftragsnr.</th>
+                                    <th>Kunde</th>
+                                    <th>Datum</th>
+                                    <th>Kennzeichen</th>
+                                    <th>Schlagwörter</th>
+                                    <th>Aktion</th>
+                                </tr>
+                            </thead>
+                            <tbody id="results-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Platzhalter -->
+        <div id="search-placeholder" class="text-center py-5">
+            <i class="bi bi-search" style="font-size: 4rem; opacity: 0.2;"></i>
+            <p class="text-muted mt-3">Geben Sie einen Suchbegriff ein, um Aufträge zu finden.</p>
+            <p class="text-muted small">
+                <strong>Tipp:</strong> Suchen Sie nach Auftragsnummern, Kundennamen, Kennzeichen oder Schlagwörtern.
+            </p>
+        </div>
+
+        <!-- Lade-Spinner -->
+        <div id="search-loading" style="display: none;" class="text-center py-5">
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">Suche läuft...</span>
+            </div>
+            <p class="text-muted mt-3">Durchsuche Datenbank...</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const searchForm = document.getElementById('search-form');
+    const multiSearchForm = document.getElementById('multi-search-form');
+    const searchPlaceholder = document.getElementById('search-placeholder');
+    const searchLoading = document.getElementById('search-loading');
+    const resultsContainer = document.getElementById('results-container');
+    const resultsCount = document.getElementById('result-count');
+    const resultsTbody = document.getElementById('results-tbody');
+
+    // Hilfsfunktion für Suche
+    function performSearch(type, query, sort) {
+        const formData = {
+            type: type || 'kunde',
+            query: query || '',
+            sort: sort || 'datum_desc'
+        };
+
+        // UI-Updates
+        searchPlaceholder.style.display = 'none';
+        resultsContainer.style.display = 'none';
+        searchLoading.style.display = 'block';
+
+        fetch('/api/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            searchLoading.style.display = 'none';
+
+            if (data.error) {
+                alert('Fehler: ' + data.error);
+                searchPlaceholder.style.display = 'block';
+                return;
+            }
+
+            displayResults(data.results);
+        })
+        .catch(error => {
+            searchLoading.style.display = 'none';
+            searchPlaceholder.style.display = 'block';
+            console.error('Suchfehler:', error);
+        });
+    }
+
+    // Prüfe URL-Parameter beim Laden und führe automatisch Suche aus
+    window.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const query = urlParams.get('query');
+        
+        if (query) {
+            console.log('URL-Parameter gefunden:', query);
+            
+            // Fülle Suchfeld aus
+            document.getElementById('search-query').value = decodeURIComponent(query);
+            
+            // Bestimme Suchtyp automatisch
+            let searchType = 'kunde';
+            if (query.match(/^\d{6}$/)) {
+                searchType = 'auftrag';
+            } else if (query.match(/^[A-Z]{1,3}-[A-Z]{1,2}\s?\d{1,4}$/i)) {
+                searchType = 'kennzeichen';
+            }
+            
+            document.getElementById('search-type').value = searchType;
+            
+            // Führe Suche direkt aus
+            setTimeout(function() {
+                performSearch(searchType, decodeURIComponent(query), 'datum_desc');
+            }, 100);
+        }
+    });
+
+    // Suchformular
+    searchForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const type = document.getElementById('search-type').value;
+        const query = document.getElementById('search-query').value.trim();
+        const sort = document.getElementById('search-sort').value;
+
+        if (!query) return;
+
+        performSearch(type, query, sort);
+    });
+
+    // Multi-Kriterien-Suche Handler
+    multiSearchForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        // Sammle alle Formular-Daten
+        const formData = new FormData(multiSearchForm);
+        const criteria = {};
+        let hasAnyCriteria = false;
+
+        // Konvertiere zu Object und filtere leere Werte
+        for (const [key, value] of formData.entries()) {
+            if (key !== 'sort' && value.trim() !== '') {
+                criteria[key] = value.trim();
+                hasAnyCriteria = true;
+            }
+        }
+
+        if (!hasAnyCriteria) {
+            alert('Bitte mindestens ein Suchkriterium eingeben!');
+            return;
+        }
+
+        const payload = {
+            criteria: criteria,
+            sort: formData.get('sort') || 'datum_desc'
+        };
+
+        // Zeige Lade-Spinner
+        searchPlaceholder.style.display = 'none';
+        resultsContainer.style.display = 'none';
+        searchLoading.style.display = 'block';
+
+        fetch('/api/search/multi', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(response => response.json())
+        .then(data => {
+            searchLoading.style.display = 'none';
+
+            if (data.error) {
+                alert('Fehler: ' + data.error);
+                searchPlaceholder.style.display = 'block';
+                return;
+            }
+
+            // Zeige Ergebnisse
+            displayResults(data.results);
+        })
+        .catch(error => {
+            searchLoading.style.display = 'none';
+            searchPlaceholder.style.display = 'block';
+            alert('Fehler bei der Multi-Kriterien-Suche: ' + error);
+        });
+    });
+
+    // Ergebnisse anzeigen
+    function displayResults(results) {
+        resultsCount.textContent = results.length;
+        resultsTbody.innerHTML = '';
+
+        if (results.length === 0) {
+            resultsTbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-4">
+                        <i class="bi bi-inbox"></i> Keine Ergebnisse gefunden
+                    </td>
+                </tr>
+            `;
+            resultsContainer.style.display = 'block';
+            return;
+        }
+
+        results.forEach(item => {
+            // Keywords formatieren
+            let keywordsHtml = '';
+            if (item.keywords && Object.keys(item.keywords).length > 0) {
+                keywordsHtml = Object.keys(item.keywords)
+                    .slice(0, 3)
+                    .map(kw => `<span class="badge bg-secondary">${kw}</span>`)
+                    .join(' ');
+                if (Object.keys(item.keywords).length > 3) {
+                    keywordsHtml += ` <span class="badge bg-light text-dark">+${Object.keys(item.keywords).length - 3}</span>`;
+                }
+            } else {
+                keywordsHtml = '<span class="text-muted">-</span>';
+            }
+
+            const row = document.createElement('tr');
+            row.className = 'search-result';
+            row.innerHTML = `
+                <td><strong>${item.auftrag_nr}</strong></td>
+                <td>${item.kunde_name || '<span class="text-muted">N/A</span>'}</td>
+                <td>${item.datum || '<span class="text-muted">N/A</span>'}</td>
+                <td>${item.kennzeichen || '<span class="text-muted">N/A</span>'}</td>
+                <td>${keywordsHtml}</td>
+                <td>
+                    <div class="btn-group" role="group">
+                        <a href="/api/archive/download/${item.id}" class="btn btn-sm btn-outline-primary" title="PDF herunterladen">
+                            <i class="bi bi-download"></i>
+                        </a>
+                        <button class="btn btn-sm btn-outline-info" onclick="revealInFinder(${item.id})" title="Im Finder zeigen">
+                            <i class="bi bi-folder2-open"></i>
+                        </button>
+                    </div>
+                </td>
+            `;
+            resultsTbody.appendChild(row);
+        });
+
+        resultsContainer.style.display = 'block';
+    }
+
+    // Datei im Finder/Explorer zeigen
+    function revealInFinder(auftragId) {
+        fetch(`/api/archive/reveal/${auftragId}`, {
+            method: 'GET'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const toast = document.createElement('div');
+                toast.className = 'position-fixed top-0 end-0 p-3';
+                toast.style.zIndex = '9999';
+                toast.innerHTML = `
+                    <div class="alert alert-info alert-dismissible fade show" role="alert">
+                        <i class="bi bi-folder2-open"></i> Finder/Explorer geöffnet
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                `;
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 3000);
+            } else {
+                alert(`Fehler: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            alert(`Fehler beim Öffnen: ${error}`);
+        });
+    }
+
+    // Zurücksetzen
+    document.getElementById('btn-clear-results').addEventListener('click', function() {
+        searchForm.reset();
+        multiSearchForm.reset();
+        resultsContainer.style.display = 'none';
+        searchPlaceholder.style.display = 'block';
+    });
+
+    // Platzhalter-Hinweise für Suchtypen
+    const searchTypeSelect = document.getElementById('search-type');
+    const searchQueryInput = document.getElementById('search-query');
+    const searchHint = document.getElementById('search-hint');
+
+    const placeholders = {
+        'auftrag': { placeholder: 'z.B. 76329 oder 303', hint: 'Auftragsnummer eingeben (3-6 Ziffern)' },
+        'kunde': { placeholder: 'z.B. Müller oder Schmidt', hint: 'Kundenname oder Teil davon' },
+        'kennzeichen': { placeholder: 'z.B. B-AB 1234', hint: 'Kennzeichen mit oder ohne Leerzeichen' },
+        'vin': { placeholder: 'z.B. WVWZZZ1JZYW123456', hint: 'Komplette VIN (17 Zeichen)' },
+        'vis': { placeholder: 'z.B. 123456', hint: 'VIS = letzte 6 Zeichen der VIN' },
+        'keyword': { placeholder: 'z.B. Garantie', hint: 'Schlagwort aus Auftragsdokument' },
+        'datum': { placeholder: 'z.B. 2024-07-19', hint: 'Datum im Format YYYY-MM-DD' },
+        'monat': { placeholder: 'z.B. 2024-07', hint: 'Jahr und Monat im Format YYYY-MM' },
+        'jahr': { placeholder: 'z.B. 2024', hint: 'Jahr im Format YYYY' }
+    };
+
+    searchTypeSelect.addEventListener('change', function() {
+        const type = this.value;
+        const config = placeholders[type];
+        if (config) {
+            searchQueryInput.placeholder = config.placeholder;
+            searchHint.textContent = config.hint;
+        }
+    });
+</script>
+{% endblock %}

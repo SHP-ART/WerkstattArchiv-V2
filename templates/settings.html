@@ -1,0 +1,418 @@
+{% extends "base.html" %}
+
+{% block title %}Einstellungen - Werkstatt-Archiv{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4"><i class="bi bi-gear"></i> Einstellungen</h2>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Ordner-Konfiguration -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-folder2-open"></i> Ordner-Konfiguration
+            </div>
+            <div class="card-body">
+                <form id="settings-form">
+                    <div class="mb-3">
+                        <label for="input_folder" class="form-label">
+                            <i class="bi bi-inbox"></i> Eingangsordner (Scans)
+                        </label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="input_folder" name="input_folder" required>
+                            <button class="btn btn-outline-secondary" type="button" id="btn-validate-input">
+                                <i class="bi bi-check-circle"></i> Prüfen
+                            </button>
+                        </div>
+                        <div class="form-text">
+                            Ordner für neue PDF-Scans (z.B. /Volumes/Server/Scans)<br>
+                            <small class="text-muted"><strong>Aktuell:</strong> <code id="current-input-folder">-</code></small>
+                        </div>
+                        <div id="input-folder-status" class="mt-1"></div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="archiv_root" class="form-label">
+                            <i class="bi bi-archive"></i> Archiv-Ordner
+                        </label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="archiv_root" name="archiv_root" required>
+                            <button class="btn btn-outline-secondary" type="button" id="btn-validate-archiv">
+                                <i class="bi bi-check-circle"></i> Prüfen
+                            </button>
+                        </div>
+                        <div class="form-text">
+                            Zielordner für archivierte PDFs und Datenbank<br>
+                            <small class="text-muted"><strong>Aktuell:</strong> <code id="current-archiv-root">-</code></small>
+                        </div>
+                        <div id="archiv-folder-status" class="mt-1"></div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="backup_target" class="form-label">
+                            <i class="bi bi-cloud-arrow-up"></i> Backup-Ordner (optional)
+                        </label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="backup_target" name="backup_target">
+                            <button class="btn btn-outline-secondary" type="button" id="btn-validate-backup">
+                                <i class="bi bi-check-circle"></i> Prüfen
+                            </button>
+                        </div>
+                        <div class="form-text">
+                            Ordner für automatische Backups<br>
+                            <small class="text-muted"><strong>Aktuell:</strong> <code id="current-backup-target">-</code></small>
+                        </div>
+                        <div id="backup-folder-status" class="mt-1"></div>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <h5 class="mb-3">OCR-Einstellungen</h5>
+
+                    <div class="mb-3">
+                        <label for="tesseract_lang" class="form-label">
+                            <i class="bi bi-translate"></i> Tesseract-Sprache
+                        </label>
+                        <select class="form-select" id="tesseract_lang" name="tesseract_lang">
+                            <option value="deu">Deutsch (deu)</option>
+                            <option value="eng">Englisch (eng)</option>
+                            <option value="deu+eng">Deutsch + Englisch</option>
+                        </select>
+                        <div class="form-text">Sprache für OCR-Texterkennung</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="max_pages_to_ocr" class="form-label">
+                            <i class="bi bi-file-earmark-text"></i> Maximale Seiten pro PDF
+                        </label>
+                        <input type="number" class="form-control" id="max_pages_to_ocr" name="max_pages_to_ocr" min="1" max="50" value="10">
+                        <div class="form-text">Anzahl der Seiten, die per OCR verarbeitet werden (Standard: 10)</div>
+                    </div>
+
+                    <h5 class="mb-3">Ordner-Struktur</h5>
+
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="use_year_folders" name="use_year_folders">
+                            <label class="form-check-label" for="use_year_folders">
+                                <i class="bi bi-calendar3"></i> Jahr-basierte Ordner (z.B. 2024/, 2025/)
+                            </label>
+                        </div>
+                        <div class="form-text ms-4">Organisiert Aufträge nach Erstellungsjahr</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="use_thousand_blocks" name="use_thousand_blocks">
+                            <label class="form-check-label" for="use_thousand_blocks">
+                                <i class="bi bi-folder-symlink"></i> Tausender-Blöcke verwenden (z.B. 070000-079999)
+                            </label>
+                        </div>
+                        <div class="form-text ms-4">Organisiert Aufträge in Tausender-Ordnern für bessere Übersicht</div>
+                    </div>
+
+                    <div class="alert alert-info small">
+                        <i class="bi bi-info-circle"></i> <strong>Hinweis:</strong> Beide Optionen können gleichzeitig aktiv sein (z.B. 2024/070000-079999/). 
+                        Ohne Auswahl werden Aufträge direkt im Archiv-Ordner gespeichert.
+                    </div>
+
+                    <hr class="my-4">
+
+                    <h5 class="mb-3">Dateinamen-Format</h5>
+
+                    <div class="mb-3">
+                        <label for="dateiname_pattern" class="form-label">
+                            <i class="bi bi-file-earmark-text"></i> Dateinamen-Vorlage
+                        </label>
+                        <select class="form-select" id="dateiname_pattern" name="dateiname_pattern">
+                            <option value="{auftrag_nr}_Auftrag{version_suffix}.pdf">Nur Auftragsnr. (z.B. 076329_Auftrag.pdf)</option>
+                            <option value="{auftrag_nr}_{name}{version_suffix}.pdf">Auftragsnr. + Name (z.B. 076329_Voigt.pdf)</option>
+                            <option value="{auftrag_nr}_{name}_{datum}{version_suffix}.pdf">Auftragsnr. + Name + Datum (z.B. 076329_Voigt_2024-07-29.pdf)</option>
+                            <option value="{auftrag_nr}_{datum}_{name}{version_suffix}.pdf">Auftragsnr. + Datum + Name (z.B. 076329_2024-07-29_Voigt.pdf)</option>
+                            <option value="{auftrag_nr}_{kennzeichen}_{name}{version_suffix}.pdf">Auftragsnr. + Kennzeichen + Name (z.B. 076329_SFB-B1005_Voigt.pdf)</option>
+                            <option value="{datum}_{auftrag_nr}_{name}{version_suffix}.pdf">Datum + Auftragsnr. + Name (z.B. 2024-07-29_076329_Voigt.pdf)</option>
+                        </select>
+                        <div class="form-text">
+                            <strong>Verfügbare Platzhalter:</strong> 
+                            <code>{auftrag_nr}</code>, 
+                            <code>{name}</code>, 
+                            <code>{datum}</code>, 
+                            <code>{kennzeichen}</code>, 
+                            <code>{vin}</code>, 
+                            <code>{version_suffix}</code>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 
+                        <strong>Hinweis:</strong> Bei mehreren Versionen desselben Auftrags wird automatisch <code>_v2</code>, <code>_v3</code> usw. angehängt.
+                        Fehlende Daten werden durch Platzhalter ersetzt (z.B. "Unbekannt" für Name).
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg" id="btn-save">
+                            <i class="bi bi-save"></i> Einstellungen speichern
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <!-- Info-Box -->
+        <div class="card mb-3">
+            <div class="card-header bg-info text-white">
+                <i class="bi bi-info-circle"></i> Hinweise
+            </div>
+            <div class="card-body">
+                <h6>Ordner-Struktur</h6>
+                <p class="small">Das Archiv wird automatisch in folgender Struktur angelegt:</p>
+                
+                <div class="alert alert-info small mb-2">
+                    <strong><i class="bi bi-info-circle"></i> Aktuelle Konfiguration:</strong>
+                    <span id="structure-type">Lade...</span>
+                </div>
+                
+                <p class="small mb-1"><strong>Mit Jahr-Ordnern</strong> (use_year_folders = true):</p>
+                <pre class="small bg-light p-2 rounded mb-3">Archiv/
+├── 2024/
+│   ├── 076329/
+│   │   └── 076329_Auftrag.pdf
+│   └── 076330/
+│       └── 076330_Auftrag.pdf
+├── 2025/
+│   └── 000303/
+│       └── 000303_Auftrag.pdf
+└── werkstatt.db</pre>
+
+                <p class="small mb-1"><strong>Mit Tausender-Blöcken</strong> (use_thousand_blocks = true):</p>
+                <pre class="small bg-light p-2 rounded">Archiv/
+├── 000000-009999/
+│   └── 000303/
+│       └── 000303_Auftrag.pdf
+├── 070000-079999/
+│   ├── 076329/
+│   │   └── 076329_Auftrag.pdf
+│   └── 076330/
+│       └── 076330_Auftrag.pdf
+└── werkstatt.db</pre>
+                
+                <hr>
+                
+                <h6 class="mt-3">Netzwerkpfade</h6>
+                <p class="small mb-1"><strong>macOS:</strong> /Volumes/Server/...</p>
+                <p class="small mb-1"><strong>Windows:</strong> \\SERVER\Share\...</p>
+                
+                <hr>
+                
+                <h6 class="mt-3">Berechtigungen</h6>
+                <p class="small mb-0">Die Anwendung benötigt Lese- und Schreibrechte für alle konfigurierten Ordner.</p>
+            </div>
+        </div>
+
+        <!-- System-Info -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-info-square"></i> System-Informationen
+            </div>
+            <div class="card-body">
+                <p class="small mb-2"><strong>Konfigurationsdatei:</strong></p>
+                <code class="small">.archiv_config.json</code>
+                
+                <p class="small mb-2 mt-3"><strong>Python-Version:</strong></p>
+                <code class="small" id="python-version">-</code>
+                
+                <p class="small mb-2 mt-3"><strong>Tesseract-Version:</strong></p>
+                <code class="small" id="tesseract-version">-</code>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Lade aktuelle Einstellungen
+    function loadSettings() {
+        fetch('/api/settings')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('input_folder').value = data.input_folder || '';
+                document.getElementById('current-input-folder').textContent = data.input_folder || 'Nicht konfiguriert';
+                
+                document.getElementById('archiv_root').value = data.archiv_root || '';
+                document.getElementById('current-archiv-root').textContent = data.archiv_root || 'Nicht konfiguriert';
+                
+                // Zeige aktuelle Ordner-Struktur
+                const structureType = document.getElementById('structure-type');
+                if (data.use_year_folders && data.use_thousand_blocks) {
+                    structureType.innerHTML = '<strong class="text-success">Jahr-basiert + Tausender-Blöcke</strong> (2024/070000-079999/...)';
+                } else if (data.use_year_folders) {
+                    structureType.innerHTML = '<strong class="text-success">Jahr-basierte Struktur</strong> (2024/, 2025/, ...)';
+                } else if (data.use_thousand_blocks) {
+                    structureType.innerHTML = '<strong class="text-primary">Tausender-Blöcke</strong> (000000-009999/, 070000-079999/, ...)';
+                } else {
+                    structureType.innerHTML = '<strong>Flache Struktur</strong> (alle Aufträge direkt im Archiv-Ordner)';
+                }
+                document.getElementById('backup_target').value = data.backup_target || '';
+                document.getElementById('current-backup-target').textContent = data.backup_target || 'Nicht konfiguriert';
+                
+                document.getElementById('tesseract_lang').value = data.tesseract_lang || 'deu';
+                document.getElementById('max_pages_to_ocr').value = data.max_pages_to_ocr || 10;
+                document.getElementById('use_year_folders').checked = data.use_year_folders === true;
+                document.getElementById('use_thousand_blocks').checked = data.use_thousand_blocks === true;
+                document.getElementById('dateiname_pattern').value = data.dateiname_pattern || '{auftrag_nr}_Auftrag{version_suffix}.pdf';
+            })
+            .catch(error => console.error('Fehler beim Laden:', error));
+    }
+
+    // Validiere Ordner
+    function validateFolder(path, statusElementId) {
+        const statusEl = document.getElementById(statusElementId);
+        statusEl.innerHTML = '<span class="spinner-border spinner-border-sm text-primary"></span> Prüfe...';
+
+        fetch('/api/settings/validate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: path })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                statusEl.innerHTML = `<span class="badge bg-danger">Fehler: ${data.error}</span>`;
+                return;
+            }
+
+            let html = '';
+            if (!data.exists) {
+                html = '<span class="badge bg-danger"><i class="bi bi-x-circle"></i> Ordner existiert nicht</span>';
+            } else if (!data.is_dir) {
+                html = '<span class="badge bg-danger"><i class="bi bi-x-circle"></i> Kein Ordner</span>';
+            } else {
+                const readable = data.readable ? '<span class="badge bg-success"><i class="bi bi-check"></i> Lesbar</span>' : '<span class="badge bg-danger"><i class="bi bi-x"></i> Nicht lesbar</span>';
+                const writable = data.writable ? '<span class="badge bg-success"><i class="bi bi-check"></i> Schreibbar</span>' : '<span class="badge bg-danger"><i class="bi bi-x"></i> Nicht schreibbar</span>';
+                html = `${readable} ${writable}`;
+            }
+            statusEl.innerHTML = html;
+        })
+        .catch(error => {
+            statusEl.innerHTML = `<span class="badge bg-danger">Fehler: ${error}</span>`;
+        });
+    }
+
+    // Event-Listener für Validierungs-Buttons
+    document.getElementById('btn-validate-input').addEventListener('click', function() {
+        const path = document.getElementById('input_folder').value;
+        if (path) validateFolder(path, 'input-folder-status');
+    });
+
+    document.getElementById('btn-validate-archiv').addEventListener('click', function() {
+        const path = document.getElementById('archiv_root').value;
+        if (path) validateFolder(path, 'archiv-folder-status');
+    });
+
+    document.getElementById('btn-validate-backup').addEventListener('click', function() {
+        const path = document.getElementById('backup_target').value;
+        if (path) validateFolder(path, 'backup-folder-status');
+    });
+
+    // Formular speichern
+    document.getElementById('settings-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const btnSave = document.getElementById('btn-save');
+        btnSave.disabled = true;
+        btnSave.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Speichere...';
+
+        const formData = {
+            input_folder: document.getElementById('input_folder').value,
+            archiv_root: document.getElementById('archiv_root').value,
+            backup_target: document.getElementById('backup_target').value,
+            tesseract_lang: document.getElementById('tesseract_lang').value,
+            max_pages_to_ocr: parseInt(document.getElementById('max_pages_to_ocr').value),
+            use_year_folders: document.getElementById('use_year_folders').checked,
+            use_thousand_blocks: document.getElementById('use_thousand_blocks').checked,
+            dateiname_pattern: document.getElementById('dateiname_pattern').value
+        };
+
+        fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                btnSave.className = 'btn btn-success btn-lg';
+                btnSave.innerHTML = '<i class="bi bi-check-circle"></i> Gespeichert!';
+                setTimeout(() => {
+                    btnSave.className = 'btn btn-primary btn-lg';
+                    btnSave.innerHTML = '<i class="bi bi-save"></i> Einstellungen speichern';
+                    btnSave.disabled = false;
+                    // Lade Einstellungen neu um aktuelle Pfade zu aktualisieren
+                    loadSettings();
+                }, 2000);
+            } else {
+                // Zeige detaillierte Fehlermeldung in Modal
+                const errorMsg = data.error || 'Unbekannter Fehler';
+                const modalHtml = `
+                    <div class="modal fade" id="errorModal" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header bg-danger text-white">
+                                    <h5 class="modal-title"><i class="bi bi-exclamation-triangle"></i> Fehler beim Speichern</h5>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p>${errorMsg}</p>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                const modal = new bootstrap.Modal(document.getElementById('errorModal'));
+                modal.show();
+                document.getElementById('errorModal').addEventListener('hidden.bs.modal', function() {
+                    this.remove();
+                });
+                
+                btnSave.disabled = false;
+                btnSave.innerHTML = '<i class="bi bi-save"></i> Einstellungen speichern';
+            }
+        })
+        .catch(error => {
+            alert('Fehler: ' + error);
+            btnSave.disabled = false;
+            btnSave.innerHTML = '<i class="bi bi-save"></i> Einstellungen speichern';
+        });
+    });
+
+    // Lade System-Informationen
+    function loadSystemInfo() {
+        fetch('/api/system-info')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('python-version').textContent = data.python_version || 'Unbekannt';
+                document.getElementById('tesseract-version').textContent = data.tesseract_version || 'Nicht installiert';
+            })
+            .catch(error => {
+                console.error('Fehler beim Laden der System-Info:', error);
+                document.getElementById('python-version').textContent = 'Fehler';
+                document.getElementById('tesseract-version').textContent = 'Fehler';
+            });
+    }
+
+    // Initial laden
+    loadSettings();
+    loadSystemInfo();
+</script>
+{% endblock %}

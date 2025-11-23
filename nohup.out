@@ -1,0 +1,16 @@
+2025-11-22 20:37:59,002 - config - INFO - Konfigurationsdatei gefunden: .archiv_config.json
+2025-11-22 20:38:11,172 - config - INFO - Konfiguration geladen von: .archiv_config.json
+2025-11-22 20:38:11,173 - config - INFO - Fehlender Konfigurationswert ergänzt: use_year_folders
+2025-11-22 20:38:11,173 - __main__ - INFO - ============================================================
+2025-11-22 20:38:11,173 - __main__ - INFO - Werkstatt-Archiv Web-UI
+2025-11-22 20:38:11,173 - __main__ - INFO - ============================================================
+2025-11-22 20:38:11,173 - __main__ - INFO - Server-Adresse: http://127.0.0.1:8080
+2025-11-22 20:38:11,173 - __main__ - INFO - Debug-Modus: Deaktiviert
+2025-11-22 20:38:11,173 - __main__ - INFO - Threaded: Aktiviert
+2025-11-22 20:38:11,173 - __main__ - INFO - ============================================================
+2025-11-22 20:38:11,173 - __main__ - WARNING - WARNUNG: Dies ist ein Development-Server!
+2025-11-22 20:38:11,173 - __main__ - WARNING - Für Produktion verwenden Sie einen WSGI-Server wie gunicorn oder waitress.
+ * Serving Flask app 'web_app'
+ * Debug mode: off
+Address already in use
+Port 8080 is in use by another program. Either identify and stop that program, or start the server with a different port.

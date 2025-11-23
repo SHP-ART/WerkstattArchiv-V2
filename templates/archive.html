@@ -1,0 +1,634 @@
+{% extends "base.html" %}
+
+{% block title %}Archiv - Werkstatt-Archiv{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4"><i class="bi bi-folder"></i> Archiv-Übersicht</h2>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-list"></i> Alle Aufträge</span>
+                <div>
+                    <span class="badge bg-primary me-2" id="total-badge">Lade...</span>
+                    <button class="btn btn-sm btn-outline-secondary" id="btn-refresh">
+                        <i class="bi bi-arrow-clockwise"></i> Aktualisieren
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Auftragsnr.</th>
+                                <th>Kunden-Nr.</th>
+                                <th>Kunde</th>
+                                <th>Datum</th>
+                                <th>Kennzeichen</th>
+                                <th>VIN</th>
+                                <th>Schlagwörter</th>
+                                <th>Aktion</th>
+                            </tr>
+                        </thead>
+                        <tbody id="archive-tbody">
+                            <tr>
+                                <td colspan="8" class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Lade...</span>
+                                    </div>
+                                    <p class="text-muted mt-2 mb-0">Lade Archiv-Daten...</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-muted">Zeige <strong id="showing-from">0</strong>-<strong id="showing-to">0</strong> von <strong id="showing-total">0</strong></span>
+                </div>
+                <nav>
+                    <ul class="pagination pagination-sm mb-0" id="pagination">
+                        <li class="page-item disabled">
+                            <a class="page-link" href="#" id="btn-prev">Zurück</a>
+                        </li>
+                        <li class="page-item active">
+                            <a class="page-link" href="#" id="current-page">1</a>
+                        </li>
+                        <li class="page-item disabled">
+                            <a class="page-link" href="#" id="btn-next">Weiter</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Suggestions Modal -->
+<div class="modal fade" id="suggestionsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-magic"></i> Neue Daten erkannt</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> PDF wurde neu gescannt. Folgende Änderungen wurden erkannt:
+                </div>
+                <div id="suggestions-list"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-primary" onclick="applyAllSuggestions()">
+                    <i class="bi bi-check-all"></i> Alle übernehmen
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil"></i> Auftragsdaten bearbeiten</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editForm">
+                    <input type="hidden" id="edit-id">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Auftragsnummer (nicht änderbar)</label>
+                        <input type="text" class="form-control" id="edit-auftrag-nr" disabled>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Kunden-Nr.</label>
+                        <input type="text" class="form-control" id="edit-kunden-nr" placeholder="z.B. 10107">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Kundenname</label>
+                        <input type="text" class="form-control" id="edit-kunde-name" placeholder="z.B. Müller GmbH">
+                        <div class="form-text">Hier kannst du falsch erkannte Namen korrigieren</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Datum</label>
+                        <input type="text" class="form-control" id="edit-datum" placeholder="YYYY-MM-DD">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Kennzeichen</label>
+                        <input type="text" class="form-control" id="edit-kennzeichen" placeholder="z.B. B-AB 1234">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">VIN</label>
+                        <input type="text" class="form-control" id="edit-vin" placeholder="17-stellige Fahrzeugidentifikationsnummer">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-primary" onclick="saveEdit()"><i class="bi bi-check-lg"></i> Speichern</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentPage = 1;
+    const perPage = 50;
+
+    // Lade Archiv-Daten
+    function loadArchive(page = 1) {
+        const tbody = document.getElementById('archive-tbody');
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Lade...</span>
+                    </div>
+                    <p class="text-muted mt-2 mb-0">Lade Seite ${page}...</p>
+                </td>
+            </tr>
+        `;
+
+        fetch(`/api/archive/list?page=${page}&per_page=${perPage}`)
+            .then(response => response.json())
+            .then(data => {
+                displayArchive(data);
+                updatePagination(data);
+            })
+            .catch(error => {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="text-center text-danger py-4">
+                            <i class="bi bi-exclamation-triangle"></i> Fehler beim Laden: ${error}
+                        </td>
+                    </tr>
+                `;
+            });
+    }
+
+    // Zeige Archiv-Daten
+    function displayArchive(data) {
+        const tbody = document.getElementById('archive-tbody');
+        
+        if (!data.results || data.results.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">
+                        <i class="bi bi-inbox"></i> Keine Aufträge im Archiv
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = data.results.map(item => {
+            // Keywords
+            let keywordsHtml = '';
+            if (item.keywords && Object.keys(item.keywords).length > 0) {
+                keywordsHtml = Object.keys(item.keywords)
+                    .slice(0, 2)
+                    .map(kw => `<span class="badge bg-info">${kw}</span>`)
+                    .join(' ');
+                if (Object.keys(item.keywords).length > 2) {
+                    keywordsHtml += ` <span class="badge bg-light text-dark">+${Object.keys(item.keywords).length - 2}</span>`;
+                }
+            } else {
+                keywordsHtml = '<span class="text-muted">-</span>';
+            }
+
+            return `
+                <tr>
+                    <td><strong>${item.auftrag_nr}</strong></td>
+                    <td>${item.kunden_nr || '<span class="text-muted">-</span>'}</td>
+                    <td>${item.kunde_name || '<span class="text-muted">-</span>'}</td>
+                    <td>${item.datum || '<span class="text-muted">-</span>'}</td>
+                    <td>${item.kennzeichen || '<span class="text-muted">-</span>'}</td>
+                    <td><small>${item.vin || '<span class="text-muted">-</span>'}</small></td>
+                    <td>${keywordsHtml}</td>
+                    <td>
+                        <div class="btn-group" role="group">
+                            <a href="/api/archive/download/${item.id}" class="btn btn-sm btn-primary" title="PDF herunterladen">
+                                <i class="bi bi-download"></i>
+                            </a>
+                            <button class="btn btn-sm btn-info" onclick="revealInFinder(${item.id})" title="Im Finder zeigen">
+                                <i class="bi bi-folder2-open"></i>
+                            </button>
+                            <button class="btn btn-sm btn-success" onclick="editAuftrag(${item.id})" title="Daten bearbeiten">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-warning" onclick="reprocessAuftrag(${item.id}, '${item.auftrag_nr}')" title="Neu verarbeiten & korrigieren">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        // Update total badge
+        document.getElementById('total-badge').textContent = `${data.total} Aufträge`;
+
+        // Update showing info
+        const from = (data.page - 1) * data.per_page + 1;
+        const to = Math.min(data.page * data.per_page, data.total);
+        document.getElementById('showing-from').textContent = from;
+        document.getElementById('showing-to').textContent = to;
+        document.getElementById('showing-total').textContent = data.total;
+    }
+
+    // Pagination
+    function updatePagination(data) {
+        currentPage = data.page;
+        const btnPrev = document.getElementById('btn-prev').parentElement;
+        const btnNext = document.getElementById('btn-next').parentElement;
+        const currentPageEl = document.getElementById('current-page');
+
+        currentPageEl.textContent = data.page;
+
+        // Previous
+        if (data.page > 1) {
+            btnPrev.classList.remove('disabled');
+        } else {
+            btnPrev.classList.add('disabled');
+        }
+
+        // Next
+        if (data.page < data.total_pages) {
+            btnNext.classList.remove('disabled');
+        } else {
+            btnNext.classList.add('disabled');
+        }
+    }
+
+    // Event-Listener
+    document.getElementById('btn-prev').addEventListener('click', function(e) {
+        e.preventDefault();
+        if (currentPage > 1) {
+            loadArchive(currentPage - 1);
+        }
+    });
+
+    document.getElementById('btn-next').addEventListener('click', function(e) {
+        e.preventDefault();
+        loadArchive(currentPage + 1);
+    });
+
+    document.getElementById('btn-refresh').addEventListener('click', function() {
+        loadArchive(currentPage);
+    });
+
+    // Globale Variable für Vorschläge
+    let currentSuggestions = {};
+    let currentAuftragId = null;
+
+    // Auftrag neu verarbeiten
+    function reprocessAuftrag(auftragId, auftragNr) {
+        if (!confirm(`Auftrag ${auftragNr} wirklich neu scannen?\n\nDie OCR-Erkennung wird erneut durchgeführt.`)) {
+            return;
+        }
+
+        currentAuftragId = auftragId;
+
+        // Button deaktivieren
+        const btn = event.target.closest('button');
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+
+        // Aktuelle Daten laden
+        fetch(`/api/archive/detail/${auftragId}`)
+            .then(response => response.json())
+            .then(currentData => {
+                // Neu scannen
+                return fetch(`/api/archive/reprocess/${auftragId}`, {
+                    method: 'POST'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHtml;
+
+                    if (data.error) {
+                        if (data.suggestion) {
+                            alert(`Fehler: ${data.error}\n\n${data.suggestion}`);
+                        } else {
+                            alert(`Fehler: ${data.error}`);
+                        }
+                        return;
+                    }
+
+                    // Neue Daten laden
+                    return fetch(`/api/archive/detail/${auftragId}`)
+                        .then(response => response.json())
+                        .then(newData => {
+                            // Vergleiche alte mit neuen Werten
+                            const suggestions = {};
+                            const fieldNames = {
+                                'auftrag_nr': 'Auftragsnr.',
+                                'kunden_nr': 'Kundennr.',
+                                'kunde_name': 'Name',
+                                'datum': 'Datum',
+                                'kennzeichen': 'Kennzeichen',
+                                'vin': 'VIN'
+                            };
+
+                            // Prüfe jedes Feld
+                            Object.keys(fieldNames).forEach(field => {
+                                const oldValue = currentData[field] || '';
+                                const newValue = newData[field] || '';
+                                
+                                if (newValue && newValue !== oldValue) {
+                                    suggestions[field] = {
+                                        old: oldValue,
+                                        new: newValue,
+                                        label: fieldNames[field]
+                                    };
+                                }
+                            });
+
+                            if (Object.keys(suggestions).length === 0) {
+                                alert('Keine neuen Daten erkannt.\nDie gescannten Werte sind identisch mit den vorhandenen.');
+                                return;
+                            }
+
+                            // Zeige Vorschläge-Modal
+                            currentSuggestions = suggestions;
+                            showSuggestionsModal(suggestions);
+                        });
+                });
+            })
+            .catch(error => {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+                alert(`Fehler beim Neu-Verarbeiten: ${error}`);
+            });
+    }
+
+    // Zeige Vorschläge-Modal
+    function showSuggestionsModal(suggestions) {
+        const listHtml = Object.keys(suggestions).map(field => {
+            const s = suggestions[field];
+            return `
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <h6 class="mb-2">
+                                    <span class="badge bg-secondary">${s.label}</span>
+                                </h6>
+                                <div class="mb-1">
+                                    <small class="text-muted">Alt:</small>
+                                    <span class="text-decoration-line-through">${s.old || '<em>leer</em>'}</span>
+                                </div>
+                                <div>
+                                    <small class="text-muted">Neu:</small>
+                                    <strong class="text-success">${s.new}</strong>
+                                </div>
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <button class="btn btn-sm btn-success" onclick="applySingleSuggestion('${field}')">
+                                    <i class="bi bi-check"></i> Übernehmen
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        document.getElementById('suggestions-list').innerHTML = listHtml;
+        
+        const modal = new bootstrap.Modal(document.getElementById('suggestionsModal'));
+        modal.show();
+    }
+
+    // Einzelnen Vorschlag übernehmen
+    function applySingleSuggestion(field) {
+        if (!currentSuggestions[field] || !currentAuftragId) {
+            return;
+        }
+
+        const newValue = currentSuggestions[field].new;
+        
+        // Lade aktuelle Daten
+        fetch(`/api/archive/detail/${currentAuftragId}`)
+            .then(response => response.json())
+            .then(data => {
+                // Update das eine Feld
+                data[field] = newValue;
+                
+                // Speichere
+                return fetch('/api/archive/update', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    // Entferne Vorschlag aus Liste
+                    delete currentSuggestions[field];
+                    
+                    // Wenn keine Vorschläge mehr übrig, schließe Modal
+                    if (Object.keys(currentSuggestions).length === 0) {
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('suggestionsModal'));
+                        modal.hide();
+                        alert('Alle Änderungen übernommen!');
+                        loadArchive(currentPage);
+                    } else {
+                        // Zeige verbleibende Vorschläge
+                        showSuggestionsModal(currentSuggestions);
+                        
+                        // Kurzes Feedback
+                        const toast = document.createElement('div');
+                        toast.className = 'position-fixed top-0 end-0 p-3';
+                        toast.style.zIndex = '9999';
+                        toast.innerHTML = `
+                            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                                <i class="bi bi-check-circle"></i> ${currentSuggestions[field]?.label || 'Feld'} übernommen!
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        `;
+                        document.body.appendChild(toast);
+                        setTimeout(() => toast.remove(), 3000);
+                    }
+                } else {
+                    alert(`Fehler beim Speichern: ${result.error}`);
+                }
+            })
+            .catch(error => {
+                alert(`Fehler: ${error}`);
+            });
+    }
+
+    // Alle Vorschläge übernehmen
+    function applyAllSuggestions() {
+        if (!currentAuftragId || Object.keys(currentSuggestions).length === 0) {
+            return;
+        }
+
+        // Lade aktuelle Daten
+        fetch(`/api/archive/detail/${currentAuftragId}`)
+            .then(response => response.json())
+            .then(data => {
+                // Update alle Felder
+                Object.keys(currentSuggestions).forEach(field => {
+                    data[field] = currentSuggestions[field].new;
+                });
+                
+                // Speichere
+                return fetch('/api/archive/update', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    // Schließe Modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('suggestionsModal'));
+                    modal.hide();
+                    
+                    alert('Alle Änderungen übernommen!');
+                    
+                    // Lade Archiv neu
+                    loadArchive(currentPage);
+                    
+                    // Reset
+                    currentSuggestions = {};
+                    currentAuftragId = null;
+                } else {
+                    alert(`Fehler beim Speichern: ${result.error}`);
+                }
+            })
+            .catch(error => {
+                alert(`Fehler: ${error}`);
+            });
+    }
+
+    // Datei im Finder/Explorer zeigen
+    function revealInFinder(auftragId) {
+        fetch(`/api/archive/reveal/${auftragId}`, {
+            method: 'GET'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Kurzes visuelles Feedback
+                const toast = document.createElement('div');
+                toast.className = 'position-fixed top-0 end-0 p-3';
+                toast.style.zIndex = '9999';
+                toast.innerHTML = `
+                    <div class="alert alert-info alert-dismissible fade show" role="alert">
+                        <i class="bi bi-folder2-open"></i> Finder/Explorer geöffnet
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                `;
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 3000);
+            } else {
+                alert(`Fehler: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            alert(`Fehler beim Öffnen: ${error}`);
+        });
+    }
+
+    // Auftrag bearbeiten
+    function editAuftrag(auftragId) {
+        // Lade aktuelle Daten
+        fetch(`/api/archive/detail/${auftragId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(`Fehler: ${data.error}`);
+                    return;
+                }
+                
+                // Fülle Modal
+                document.getElementById('edit-id').value = data.id;
+                document.getElementById('edit-auftrag-nr').value = data.auftrag_nr || '';
+                document.getElementById('edit-kunden-nr').value = data.kunden_nr || '';
+                document.getElementById('edit-kunde-name').value = data.kunde_name || '';
+                document.getElementById('edit-datum').value = data.datum || '';
+                document.getElementById('edit-kennzeichen').value = data.kennzeichen || '';
+                document.getElementById('edit-vin').value = data.vin || '';
+                
+                // Zeige Modal
+                const modal = new bootstrap.Modal(document.getElementById('editModal'));
+                modal.show();
+            })
+            .catch(error => {
+                alert(`Fehler beim Laden: ${error}`);
+            });
+    }
+
+    // Änderungen speichern
+    function saveEdit() {
+        const data = {
+            id: document.getElementById('edit-id').value,
+            auftrag_nr: document.getElementById('edit-auftrag-nr').value,
+            kunden_nr: document.getElementById('edit-kunden-nr').value,
+            kunde_name: document.getElementById('edit-kunde-name').value,
+            datum: document.getElementById('edit-datum').value,
+            kennzeichen: document.getElementById('edit-kennzeichen').value,
+            vin: document.getElementById('edit-vin').value
+        };
+
+        fetch('/api/archive/update', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                // Schließe Modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('editModal'));
+                modal.hide();
+                
+                // Zeige Erfolg
+                alert('Daten erfolgreich gespeichert!');
+                
+                // Lade Archiv neu
+                loadArchive(currentPage);
+            } else {
+                alert(`Fehler: ${result.error}`);
+            }
+        })
+        .catch(error => {
+            alert(`Fehler beim Speichern: ${error}`);
+        });
+    }
+
+    // Initial Load
+    loadArchive();
+</script>
+{% endblock %}

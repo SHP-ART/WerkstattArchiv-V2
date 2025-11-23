@@ -1,0 +1,432 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Werkstatt-Archiv{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4"><i class="bi bi-speedometer2"></i> Dashboard</h2>
+    </div>
+</div>
+
+<!-- Statistik-Karten -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card text-white bg-primary">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-subtitle mb-2 text-white-50">Gesamt Aufträge</h6>
+                        <h2 class="card-title mb-0" id="total-count">-</h2>
+                    </div>
+                    <i class="bi bi-folder-fill stat-icon"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stat-card text-white bg-success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-subtitle mb-2 text-white-50">Heute verarbeitet</h6>
+                        <h2 class="card-title mb-0" id="today-count">-</h2>
+                    </div>
+                    <i class="bi bi-calendar-check stat-icon"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stat-card text-white" id="watcher-card" style="background-color: #dc3545;">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-subtitle mb-2 text-white-50">Watcher Status</h6>
+                        <h4 class="card-title mb-0" id="watcher-status">Gestoppt</h4>
+                    </div>
+                    <i class="bi bi-eye stat-icon"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stat-card text-white bg-info">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-subtitle mb-2 text-white-50">Konfiguration</h6>
+                        <h4 class="card-title mb-0" id="config-status">-</h4>
+                    </div>
+                    <i class="bi bi-gear stat-icon"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Watcher-Steuerung und Manueller Scan -->
+<div class="row mb-4">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header bg-success text-white">
+                <i class="bi bi-play-circle"></i> Automatische Überwachung
+            </div>
+            <div class="card-body">
+                <div class="d-flex gap-2 mb-3">
+                    <button class="btn btn-success" id="btn-start-watcher">
+                        <i class="bi bi-play-fill"></i> Watcher starten
+                    </button>
+                    <button class="btn btn-danger" id="btn-stop-watcher" disabled>
+                        <i class="bi bi-stop-fill"></i> Watcher stoppen
+                    </button>
+                </div>
+                <div class="alert alert-info mb-0" role="alert">
+                    <i class="bi bi-info-circle"></i> Überwacht den Eingangsordner kontinuierlich und verarbeitet neue PDFs automatisch.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header bg-primary text-white">
+                <i class="bi bi-folder-check"></i> Manueller Scan
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2 mb-3">
+                    <button class="btn btn-primary btn-lg" id="btn-scan-now">
+                        <i class="bi bi-search"></i> Ordner jetzt scannen & verarbeiten
+                    </button>
+                    <button class="btn btn-outline-secondary" id="btn-open-input">
+                        <i class="bi bi-folder2-open"></i> Eingangsordner öffnen
+                    </button>
+                </div>
+                <div class="alert alert-warning mb-0" role="alert">
+                    <i class="bi bi-exclamation-triangle"></i> Scannt einmalig alle PDFs im Eingangsordner und verarbeitet sie.
+                </div>
+                <div id="scan-status" class="mt-3" style="display: none;">
+                    <div class="progress">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%">
+                            Verarbeite...
+                        </div>
+                    </div>
+                    <small class="text-muted mt-2 d-block" id="scan-info"></small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Live-Log -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-terminal"></i> Live-Verarbeitung</span>
+                <button class="btn btn-sm btn-outline-secondary" id="btn-clear-log">
+                    <i class="bi bi-trash"></i> Löschen
+                </button>
+            </div>
+            <div class="card-body" style="max-height: 400px; overflow-y: auto; background-color: #f8f9fa;">
+                <div id="log-container">
+                    <p class="text-muted text-center py-3 mb-0">
+                        <i class="bi bi-hourglass-split"></i> Warte auf Aktivität...
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Letzte Aufträge -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-clock-history"></i> Zuletzt verarbeitet
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="recent-table">
+                        <thead>
+                            <tr>
+                                <th>Auftragsnr.</th>
+                                <th>Datum</th>
+                                <th>Kunde</th>
+                                <th>Kennzeichen</th>
+                                <th>Verarbeitet am</th>
+                                <th>Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recent-tbody">
+                            <tr>
+                                <td colspan="6" class="text-center text-muted">Lade Daten...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let lastLogId = 0;
+    
+    // Statistiken laden
+    function loadStats() {
+        fetch('/api/stats')
+            .then(response => response.json())
+            .then(data => {
+                // Zahlen
+                document.getElementById('total-count').textContent = data.total_auftraege || 0;
+                document.getElementById('today-count').textContent = data.today_auftraege || 0;
+                
+                // Watcher Status
+                const watcherCard = document.getElementById('watcher-card');
+                const watcherStatus = document.getElementById('watcher-status');
+                const btnStart = document.getElementById('btn-start-watcher');
+                const btnStop = document.getElementById('btn-stop-watcher');
+                
+                if (data.watcher_running) {
+                    watcherCard.style.backgroundColor = '#27ae60';
+                    watcherStatus.textContent = 'Aktiv';
+                    btnStart.disabled = true;
+                    btnStop.disabled = false;
+                } else {
+                    watcherCard.style.backgroundColor = '#dc3545';
+                    watcherStatus.textContent = 'Gestoppt';
+                    btnStart.disabled = false;
+                    btnStop.disabled = true;
+                }
+                
+                // Config Status
+                document.getElementById('config-status').textContent = data.config_valid ? 'OK' : 'Fehler';
+                
+                // Letzte Aufträge
+                if (data.recent_auftraege && data.recent_auftraege.length > 0) {
+                    const tbody = document.getElementById('recent-tbody');
+                    tbody.innerHTML = data.recent_auftraege.map(item => `
+                        <tr>
+                            <td><strong>${item.auftrag_nr}</strong></td>
+                            <td>${item.datum || '<span class="text-muted">-</span>'}</td>
+                            <td>${item.kunde_name || '<span class="text-muted">-</span>'}</td>
+                            <td>${item.kennzeichen || '<span class="text-muted">-</span>'}</td>
+                            <td><small>${new Date(item.created_at).toLocaleString('de-DE')}</small></td>
+                            <td>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <a href="/api/archive/download/${item.id}" class="btn btn-outline-primary" title="PDF herunterladen">
+                                        <i class="bi bi-download"></i>
+                                    </a>
+                                    <button class="btn btn-outline-info" onclick="revealInFinder(${item.id})" title="Im Finder zeigen">
+                                        <i class="bi bi-folder2-open"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            })
+            .catch(error => console.error('Fehler beim Laden der Stats:', error));
+    }
+    
+    // Log-Updates
+    function loadLogs() {
+        fetch('/api/processing/status')
+            .then(response => response.json())
+            .then(data => {
+                if (data.messages && data.messages.length > 0) {
+                    const container = document.getElementById('log-container');
+                    
+                    // Entferne Platzhalter
+                    if (container.querySelector('.text-muted')) {
+                        container.innerHTML = '';
+                    }
+                    
+                    data.messages.forEach(msg => {
+                        const logEntry = document.createElement('div');
+                        logEntry.className = `log-entry ${msg.type}`;
+                        logEntry.innerHTML = `
+                            <small class="text-muted">${new Date(msg.timestamp).toLocaleTimeString('de-DE')}</small> 
+                            ${msg.message}
+                        `;
+                        container.appendChild(logEntry);
+                    });
+                    
+                    // Auto-scroll
+                    container.parentElement.scrollTop = container.parentElement.scrollHeight;
+                }
+            })
+            .catch(error => console.error('Fehler beim Laden der Logs:', error));
+    }
+    
+    // Watcher starten
+    document.getElementById('btn-start-watcher').addEventListener('click', function() {
+        this.disabled = true;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Starte...';
+        
+        fetch('/api/watcher/start', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    loadStats();
+                } else {
+                    alert('Fehler: ' + (data.error || 'Unbekannter Fehler'));
+                    this.disabled = false;
+                    this.innerHTML = '<i class="bi bi-play-fill"></i> Watcher starten';
+                }
+            })
+            .catch(error => {
+                console.error('Fehler:', error);
+                alert('Fehler beim Starten: ' + error);
+                this.disabled = false;
+                this.innerHTML = '<i class="bi bi-play-fill"></i> Watcher starten';
+            });
+    });
+    
+    // Watcher stoppen
+    document.getElementById('btn-stop-watcher').addEventListener('click', function() {
+        fetch('/api/watcher/stop', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                loadStats();
+            })
+            .catch(error => console.error('Fehler:', error));
+    });
+    
+    // Log löschen
+    document.getElementById('btn-clear-log').addEventListener('click', function() {
+        document.getElementById('log-container').innerHTML = `
+            <p class="text-muted text-center py-3 mb-0">
+                <i class="bi bi-hourglass-split"></i> Warte auf Aktivität...
+            </p>
+        `;
+    });
+
+    // Eingangsordner öffnen
+    document.getElementById('btn-open-input').addEventListener('click', function() {
+        fetch('/api/folder/open-input', {
+            method: 'GET'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Kurzes visuelles Feedback
+                const toast = document.createElement('div');
+                toast.className = 'position-fixed top-0 end-0 p-3';
+                toast.style.zIndex = '9999';
+                toast.innerHTML = `
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <i class="bi bi-folder2-open"></i> Eingangsordner geöffnet
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                `;
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 3000);
+            } else {
+                alert(`Fehler: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            alert(`Fehler beim Öffnen: ${error}`);
+        });
+    });
+
+    // Manueller Scan
+    document.getElementById('btn-scan-now').addEventListener('click', function() {
+        const btn = this;
+        const statusDiv = document.getElementById('scan-status');
+        const infoDiv = document.getElementById('scan-info');
+
+        // Button deaktivieren
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Scanne...';
+
+        // Status anzeigen
+        statusDiv.style.display = 'block';
+        infoDiv.textContent = 'Starte Scan...';
+
+        fetch('/api/scan/manual', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Erfolgsmeldung
+                    statusDiv.innerHTML = `
+                        <div class="alert alert-success mb-0">
+                            <i class="bi bi-check-circle"></i>
+                            <strong>Scan abgeschlossen!</strong><br>
+                            ${data.processed || 0} PDFs verarbeitet<br>
+                            ${data.success_count || 0} erfolgreich, ${data.error_count || 0} Fehler
+                        </div>
+                    `;
+
+                    // Nach 5 Sekunden ausblenden und Statistiken neu laden
+                    setTimeout(() => {
+                        statusDiv.style.display = 'none';
+                        loadStats();
+                    }, 5000);
+                } else {
+                    throw new Error(data.error || 'Unbekannter Fehler');
+                }
+            })
+            .catch(error => {
+                statusDiv.innerHTML = `
+                    <div class="alert alert-danger mb-0">
+                        <i class="bi bi-exclamation-circle"></i>
+                        <strong>Fehler:</strong> ${error.message}
+                    </div>
+                `;
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 5000);
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-search"></i> Ordner jetzt scannen & verarbeiten';
+            });
+    });
+
+    // Datei im Finder/Explorer zeigen
+    function revealInFinder(auftragId) {
+        fetch(`/api/archive/reveal/${auftragId}`, {
+            method: 'GET'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Kurzes visuelles Feedback
+                const toast = document.createElement('div');
+                toast.className = 'position-fixed top-0 end-0 p-3';
+                toast.style.zIndex = '9999';
+                toast.innerHTML = `
+                    <div class="alert alert-info alert-dismissible fade show" role="alert">
+                        <i class="bi bi-folder2-open"></i> Finder/Explorer geöffnet
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                `;
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 3000);
+            } else {
+                alert(`Fehler: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            alert(`Fehler beim Öffnen: ${error}`);
+        });
+    }
+
+    // Initial laden
+    loadStats();
+    loadLogs();
+
+    // Auto-refresh (reduzierte Intervalle für bessere Performance)
+    setInterval(loadStats, 10000);  // Alle 10 Sekunden statt 3
+    setInterval(loadLogs, 5000);     // Alle 5 Sekunden statt 1
+</script>
+{% endblock %}

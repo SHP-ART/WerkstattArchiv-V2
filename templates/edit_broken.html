@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+
+{% block title %}Daten korrigieren - Werkstatt-Archiv{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4"><i class="bi bi-pencil-square"></i> Daten korrigieren</h2>
+        <p class="text-muted">Ergänzen oder korrigieren Sie fehlende/fehlerhafte Daten aus der OCR-Erkennung.</p>
+    </div>
+</div>
+
+<!-- Auftrag auswählen -->
+<div class="row mb-4">
+    <div class="col-lg-10 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-search"></i> Auftrag suchen</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-8">
+                        <label for="search-auftrag" class="form-label">Auftragsnummer oder Kundenname</label>
+                        <input type="text" class="form-control form-control-lg" id="search-auftrag" placeholder="z.B. 76329 oder Müller">
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="button" class="btn btn-primary btn-lg w-100" id="btn-search">
+                            <i class="bi bi-search"></i> Suchen
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="search-results" class="mt-3" style="display: none;">
+                    <hr>
+                    <h6>Suchergebnisse:</h6>
+                    <div class="list-group" id="results-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Aufträge mit fehlenden Daten -->
+<div class="row mb-4">
+    <div class="col-lg-10 mx-auto">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Aufträge mit fehlenden Daten</h5>
+            </div>
+            <div class="card-body">
+                <div id="incomplete-auftraege-loading" class="text-center py-3">
+                    <div class="spinner-border text-warning" role="status">
+                        <span class="visually-hidden">Lade...</span>
+                    </div>
+                </div>
+                <div id="incomplete-auftraege-list" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Korrektur-Formular mit PDF-Viewer -->
+<div class="row" id="edit-form-container" style="display: none;">
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-pencil"></i> Daten bearbeiten</h5>
+                <button type="button" class="btn btn-sm btn-light" id="btn-reset">
+                    <i class="bi bi-x-circle"></i> Abbrechen
+                </button>
+            </div>
+            <div class="card-body">
+                <form id="edit-form">
+                    <input type="hidden" id="edit-id">
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label"><i class="bi bi-hash"></i> Auftragsnummer</label>
+                            <input type="text" class="form-control" id="edit-auftrag-nr" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label"><i class="bi bi-person-badge"></i> Kundennummer</label>
+                            <input type="text" class="form-control" id="edit-kunden-nr">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label"><i class="bi bi-person"></i> Kundenname</label>
+                        <input type="text" class="form-control" id="edit-name">
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label"><i class="bi bi-calendar"></i> Datum</label>
+                            <input type="date" class="form-control" id="edit-datum">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label"><i class="bi bi-car-front"></i> Kennzeichen</label>
+                            <input type="text" class="form-control" id="edit-kennzeichen">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label"><i class="bi bi-upc"></i> VIN</label>
+                            <input type="text" class="form-control" id="edit-vin" maxlength="17">
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <button type="button" class="btn btn-secondary" id="btn-cancel">Abbrechen</button>
+                        <button type="submit" class="btn btn-success btn-lg">Speichern</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-file-pdf"></i> PDF-Vorschau</h5>
+            </div>
+            <div class="card-body p-0" style="min-height: 600px;">
+                <iframe id="pdf-viewer" style="width: 100%; height: 600px; border: none;"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Messages -->
+<div class="position-fixed top-0 end-0 p-3" style="z-index: 11">
+    <div id="toast-success" class="toast align-items-center text-white bg-success border-0">
+        <div class="d-flex">
+            <div class="toast-body">Erfolgreich gespeichert!</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    </div>
+    <div id="toast-error" class="toast align-items-center text-white bg-danger border-0">
+        <div class="d-flex">
+            <div class="toast-body" id="toast-error-message">Fehler!</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentAuftragId = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadIncompleteAuftraege();
+    setupEventListeners();
+});
+
+function setupEventListeners() {
+    document.getElementById('btn-search').addEventListener('click', searchAuftraege);
+    document.getElementById('search-auftrag').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') searchAuftraege();
+    });
+    document.getElementById('btn-reset').addEventListener('click', resetForm);
+    document.getElementById('btn-cancel').addEventListener('click', resetForm);
+    document.getElementById('edit-form').addEventListener('submit', saveAuftrag);
+}
+
+function loadIncompleteAuftraege() {
+    fetch('/api/archive/incomplete')
+        .then(r => r.json())
+        .then(data => {
+            const loading = document.getElementById('incomplete-auftraege-loading');
+            const list = document.getElementById('incomplete-auftraege-list');
+            loading.style.display = 'none';
+            
+            if (data.results && data.results.length > 0) {
+                list.innerHTML = '<div class="list-group">' + data.results.map(item => {
+                    const missing = [];
+                    if (!item.kunde_name || item.kunde_name === 'N/A') missing.push('Name');
+                    if (!item.kennzeichen || item.kennzeichen === 'N/A') missing.push('KZ');
+                    if (!item.vin) missing.push('VIN');
+                    if (!item.datum) missing.push('Datum');
+                    if (!item.kunden_nr) missing.push('Kd.Nr.');
+                    
+                    return `<div class="list-group-item list-group-item-warning d-flex justify-content-between">
+                        <a href="#" class="flex-grow-1 text-decoration-none" onclick="loadAuftrag(${item.id}); return false;">
+                            <strong>${item.auftrag_nr}</strong> - ${item.kunde_name || 'Kein Name'}
+                            <br><small>Fehlend: ${missing.join(', ')}</small>
+                        </a>
+                        <button class="btn btn-sm btn-success" onclick="markComplete(${item.id}, '${item.auftrag_nr}'); event.stopPropagation();">
+                            <i class="bi bi-check-lg"></i>
+                        </button>
+                    </div>`;
+                }).join('') + '</div>';
+            } else {
+                list.innerHTML = '<div class="alert alert-success">Alle Aufträge vollständig!</div>';
+            }
+            list.style.display = 'block';
+        })
+        .catch(e => {
+            document.getElementById('incomplete-auftraege-loading').innerHTML = 
+                '<div class="alert alert-danger">Fehler: ' + e + '</div>';
+        });
+}
+
+function searchAuftraege() {
+    const query = document.getElementById('search-auftrag').value.trim();
+    if (!query) return alert('Bitte Suchbegriff eingeben!');
+    
+    Promise.all([
+        fetch('/api/search', {method: 'POST', headers: {'Content-Type': 'application/json'}, 
+              body: JSON.stringify({type: 'auftrag', query})}).then(r => r.json()),
+        fetch('/api/search', {method: 'POST', headers: {'Content-Type': 'application/json'}, 
+              body: JSON.stringify({type: 'kunde', query})}).then(r => r.json())
+    ]).then(([r1, r2]) => {
+        const results = [...r1.results, ...r2.results];
+        const unique = Array.from(new Map(results.map(i => [i.id, i])).values());
+        
+        document.getElementById('results-list').innerHTML = unique.length === 0 ? 
+            '<div class="alert alert-warning">Keine Aufträge gefunden</div>' :
+            unique.map(i => `<a href="#" class="list-group-item list-group-item-action" onclick="loadAuftrag(${i.id}); return false;">
+                <strong>${i.auftrag_nr}</strong> - ${i.kunde_name || 'Kein Name'}<br>
+                <small>KZ: ${i.kennzeichen || '-'} | VIN: ${i.vin || '-'}</small>
+            </a>`).join('');
+        document.getElementById('search-results').style.display = 'block';
+    });
+}
+
+function loadAuftrag(id) {
+    currentAuftragId = id;
+    fetch(`/api/archive/detail/${id}`)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('edit-id').value = data.id;
+            document.getElementById('edit-auftrag-nr').value = data.auftrag_nr || '';
+            document.getElementById('edit-kunden-nr').value = data.kunden_nr || '';
+            document.getElementById('edit-name').value = data.kunde_name || '';
+            document.getElementById('edit-datum').value = data.datum || '';
+            document.getElementById('edit-kennzeichen').value = data.kennzeichen || '';
+            document.getElementById('edit-vin').value = data.vin || '';
+            
+            document.getElementById('pdf-viewer').src = `/api/archive/view/${id}`;
+            document.getElementById('edit-form-container').style.display = 'flex';
+            document.getElementById('edit-form-container').scrollIntoView({behavior: 'smooth'});
+        });
+}
+
+function saveAuftrag(e) {
+    e.preventDefault();
+    const data = {
+        id: document.getElementById('edit-id').value,
+        auftrag_nr: document.getElementById('edit-auftrag-nr').value,
+        kunden_nr: document.getElementById('edit-kunden-nr').value || null,
+        kunde_name: document.getElementById('edit-name').value || null,
+        datum: document.getElementById('edit-datum').value || null,
+        kennzeichen: document.getElementById('edit-kennzeichen').value || null,
+        vin: document.getElementById('edit-vin').value || null
+    };
+    
+    fetch('/api/archive/update', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            new bootstrap.Toast(document.getElementById('toast-success')).show();
+            setTimeout(() => { resetForm(); loadIncompleteAuftraege(); }, 2000);
+        } else {
+            throw new Error(result.error);
+        }
+    })
+    .catch(e => {
+        document.getElementById('toast-error-message').textContent = 'Fehler: ' + e;
+        new bootstrap.Toast(document.getElementById('toast-error')).show();
+    });
+}
+
+function resetForm() {
+    document.getElementById('edit-form').reset();
+    document.getElementById('edit-form-container').style.display = 'none';
+    document.getElementById('search-results').style.display = 'none';
+    document.getElementById('pdf-viewer').src = 'about:blank';
+    currentAuftragId = null;
+}
+
+function markComplete(id, nr) {
+    if (!confirm(`Auftrag ${nr} als vollständig markieren?`)) return;
+    
+    fetch('/api/archive/mark-complete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({id})
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            new bootstrap.Toast(document.getElementById('toast-success')).show();
+            loadIncompleteAuftraege();
+        }
+    });
+}
+</script>
+{% endblock %}

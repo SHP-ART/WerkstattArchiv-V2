@@ -1,0 +1,112 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+.venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ============================================================
+# SENSIBLE DATEN - NIEMALS HOCHLADEN!
+# ============================================================
+
+# Archiv-Ordner mit allen PDFs (ALLE VARIANTEN!)
+archiv/
+Archiv/
+test_archiv/
+*/archiv/
+*/Archiv/
+
+# Datenbanken mit Kundendaten
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+werkstatt.db
+
+# CSV-Exporte mit Kundendaten
+kunden_index.csv
+*_index.csv
+
+# Backup-Dateien
+*.zip
+backups/
+Backups/
+
+# Papierkorb/Trash
+.trash/
+*/.trash/
+
+# Eingangsordner mit gescannten PDFs
+Eingang/
+eingang/
+*/Eingang/
+scans/
+Scans/
+
+# Fehlerordner
+Fehler/
+fehler/
+*/Fehler/
+
+# Temporäre Dateien
+*.tmp
+*.temp
+temp/
+tmp/
+
+# ============================================================
+# KONFIGURATION - ENTHÄLT LOKALE PFADE
+# ============================================================
+
+# Haupt-Konfiguration (enthält lokale Pfade)
+.archiv_config.json
+.archiv_config.yaml
+*/.archiv_config.json
+*/.archiv_config.yaml
+
+# Log-Dateien
+logs/
+*.log
+*.log.*
+
+# Test-Dateien
+test_pdfs/
+test_output/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini

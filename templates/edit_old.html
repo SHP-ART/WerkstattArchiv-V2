@@ -1,0 +1,583 @@
+{% extends "base.html" %}
+
+{% block title %}Daten korrigieren - Werkstatt-Archiv{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4"><i class="bi bi-pencil-square"></i> Daten korrigieren</h2>
+        <p class="text-muted">Ergänzen oder korrigieren Sie fehlende/fehlerhafte Daten aus der OCR-Erkennung.</p>
+    </div>
+</div>
+
+<!-- Auftrag auswählen -->
+<div class="row mb-4">
+    <div class="col-lg-10 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-search"></i> Auftrag suchen</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-8">
+                        <label for="search-auftrag" class="form-label">Auftragsnummer oder Kundenname</label>
+                        <input type="text" class="form-control form-control-lg" id="search-auftrag" placeholder="z.B. 76329 oder Müller">
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="button" class="btn btn-primary btn-lg w-100" id="btn-search">
+                            <i class="bi bi-search"></i> Suchen
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Suchergebnisse -->
+                <div id="search-results" class="mt-3" style="display: none;">
+                    <hr>
+                    <h6>Suchergebnisse:</h6>
+                    <div class="list-group" id="results-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Aufträge mit fehlenden Daten -->
+<div class="row mb-4">
+    <div class="col-lg-10 mx-auto">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Aufträge mit fehlenden Daten</h5>
+            </div>
+            <div class="card-body">
+                <div id="incomplete-auftraege-loading" class="text-center py-3">
+                    <div class="spinner-border text-warning" role="status">
+                        <span class="visually-hidden">Lade...</span>
+                    </div>
+                </div>
+                <div id="incomplete-auftraege-list" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Korrektur-Formular -->
+<div class="row" id="edit-form-container" style="display: none;">
+    <!-- Formular -->
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-pencil"></i> Daten bearbeiten</h5>
+                <button type="button" class="btn btn-sm btn-light" id="btn-reset">
+                    <i class="bi bi-x-circle"></i> Abbrechen
+                </button>
+            </div>
+            <div class="card-body">
+                <form id="edit-form">
+                    <input type="hidden" id="edit-id" name="id">
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="edit-auftrag-nr" class="form-label">
+                                <i class="bi bi-hash"></i> Auftragsnummer <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" id="edit-auftrag-nr" name="auftrag_nr" required readonly>
+                            <div class="form-text">Wird automatisch formatiert (z.B. 303 → 000303)</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="edit-kunden-nr" class="form-label">
+                                <i class="bi bi-person-badge"></i> Kundennummer
+                            </label>
+                            <input type="text" class="form-control" id="edit-kunden-nr" name="kunden_nr" placeholder="Optional">
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label for="edit-name" class="form-label">
+                                <i class="bi bi-person"></i> Kundenname
+                            </label>
+                            <input type="text" class="form-control" id="edit-name" name="kunde_name" placeholder="z.B. Max Mustermann oder Firma GmbH">
+                            <div class="form-text">Vor- und Nachname oder Firmenname</div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="edit-datum" class="form-label">
+                                <i class="bi bi-calendar"></i> Datum
+                            </label>
+                            <input type="date" class="form-control" id="edit-datum" name="datum">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="edit-kennzeichen" class="form-label">
+                                <i class="bi bi-car-front"></i> Kennzeichen
+                            </label>
+                            <input type="text" class="form-control" id="edit-kennzeichen" name="kennzeichen" placeholder="z.B. B-AB 1234">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="edit-vin" class="form-label">
+                                <i class="bi bi-upc"></i> VIN / FIN
+                            </label>
+                            <input type="text" class="form-control" id="edit-vin" name="vin" placeholder="17-stellige Fahrzeug-ID" maxlength="17">
+                            <div class="form-text" id="vin-validation"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- PDF-Aktionen -->
+                    <div class="alert alert-info mb-3 d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="bi bi-info-circle"></i> 
+                            <strong>Hinweis:</strong> Die PDF-Datei wird nicht neu verarbeitet. 
+                            Nur die Datenbank-Einträge werden aktualisiert.
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-sm btn-outline-primary me-2" id="btn-view-pdf">
+                                <i class="bi bi-eye"></i> PDF ansehen
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-download-pdf">
+                                <i class="bi bi-download"></i> Download
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Original-Daten zum Vergleich -->
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#original-data">
+                            <i class="bi bi-eye"></i> Original-Daten anzeigen
+                        </button>
+                        <div class="collapse mt-2" id="original-data">
+                            <div class="card card-body bg-light">
+                                <h6>Original-Daten aus OCR:</h6>
+                                <table class="table table-sm mb-0">
+                                    <tbody id="original-data-table"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <button type="button" class="btn btn-secondary" id="btn-cancel">
+                            <i class="bi bi-x-circle"></i> Abbrechen
+                        </button>
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="bi bi-check-circle"></i> Speichern
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- PDF-Viewer -->
+    <div class="col-lg-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-file-pdf"></i> PDF-Vorschau</h5>
+                <div>
+                    <button type="button" class="btn btn-sm btn-light me-2" id="btn-pdf-new-tab">
+                        <i class="bi bi-box-arrow-up-right"></i> Neuer Tab
+                    </button>
+                    <button type="button" class="btn btn-sm btn-light" id="btn-pdf-download">
+                        <i class="bi bi-download"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0 d-flex flex-column" style="min-height: 800px;">
+                <!-- Fallback wenn iframe nicht funktioniert -->
+                <div id="pdf-fallback" class="text-center p-5" style="display: none;">
+                    <i class="bi bi-file-pdf" style="font-size: 5rem; color: #dc3545;"></i>
+                    <h4 class="mt-3">PDF-Vorschau nicht verfügbar</h4>
+                    <p class="text-muted">Ihr Browser unterstützt keine PDF-Vorschau im iframe.</p>
+                    <button type="button" class="btn btn-primary btn-lg mt-3" id="btn-fallback-open">
+                        <i class="bi bi-box-arrow-up-right"></i> PDF in neuem Tab öffnen
+                    </button>
+                </div>
+                <iframe id="pdf-viewer" style="width: 100%; height: 100%; min-height: 800px; border: none; flex: 1;" 
+                        src="about:blank"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Erfolgs-/Fehler-Meldung -->
+<div class="position-fixed top-0 end-0 p-3" style="z-index: 11">
+    <div id="toast-success" class="toast align-items-center text-white bg-success border-0" role="alert">
+        <div class="d-flex">
+            <div class="toast-body">
+                <i class="bi bi-check-circle"></i> Daten erfolgreich gespeichert!
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    </div>
+    <div id="toast-error" class="toast align-items-center text-white bg-danger border-0" role="alert">
+        <div class="d-flex">
+            <div class="toast-body" id="toast-error-message">
+                <i class="bi bi-exclamation-triangle"></i> Fehler beim Speichern!
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let originalData = {};
+    
+    // Lade Aufträge mit fehlenden Daten beim Laden der Seite
+    document.addEventListener('DOMContentLoaded', function() {
+        loadIncompleteAuftraege();
+    });
+    
+    function loadIncompleteAuftraege() {
+        fetch('/api/archive/incomplete')
+            .then(response => response.json())
+            .then(data => {
+                const loadingDiv = document.getElementById('incomplete-auftraege-loading');
+                const listDiv = document.getElementById('incomplete-auftraege-list');
+                
+                loadingDiv.style.display = 'none';
+                
+                if (data.results && data.results.length > 0) {
+                    listDiv.innerHTML = `
+                        <p class="text-muted mb-2">
+                            <strong>${data.results.length}</strong> Auftrag${data.results.length !== 1 ? 'äge' : ''} 
+                            mit unvollständigen Daten gefunden:
+                        </p>
+                        <div class="list-group">
+                            ${data.results.map(item => {
+                                const missing = [];
+                                if (!item.kunde_name || item.kunde_name === 'N/A') missing.push('Name');
+                                if (!item.kennzeichen || item.kennzeichen === 'N/A') missing.push('KZ');
+                                if (!item.vin) missing.push('VIN');
+                                if (!item.datum) missing.push('Datum');
+                                if (!item.kunden_nr) missing.push('Kd.Nr.');
+                                
+                                return `
+                                    <div class="list-group-item list-group-item-warning d-flex justify-content-between align-items-center">
+                                        <a href="#" class="text-decoration-none flex-grow-1" 
+                                           onclick="loadAuftrag(${item.id}); return false;">
+                                            <div class="d-flex w-100 justify-content-between align-items-center">
+                                                <div>
+                                                    <h6 class="mb-1">
+                                                        <strong>${item.auftrag_nr}</strong>
+                                                        ${item.kunde_name && item.kunde_name !== 'N/A' ? 
+                                                            `- ${item.kunde_name}` : 
+                                                            '<span class="text-muted">- Kein Name</span>'}
+                                                    </h6>
+                                                    <small>
+                                                        <i class="bi bi-exclamation-circle text-danger"></i> 
+                                                        Fehlend: <strong>${missing.join(', ')}</strong>
+                                                    </small>
+                                                </div>
+                                                <small class="text-muted me-3">${item.created_at ? 
+                                                    new Date(item.created_at).toLocaleDateString('de-DE') : 
+                                                    'Kein Datum'}</small>
+                                            </div>
+                                        </a>
+                                        <button class="btn btn-sm btn-outline-success" 
+                                                onclick="markAsComplete(${item.id}, '${item.auftrag_nr}'); event.stopPropagation();"
+                                                title="Als vollständig markieren">
+                                            <i class="bi bi-check-lg"></i>
+                                        </button>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `;
+                } else {
+                    listDiv.innerHTML = `
+                        <div class="alert alert-success mb-0">
+                            <i class="bi bi-check-circle"></i> 
+                            Alle Aufträge haben vollständige Daten!
+                        </div>
+                    `;
+                }
+                
+                listDiv.style.display = 'block';
+            })
+            .catch(error => {
+                console.error('Fehler beim Laden:', error);
+                document.getElementById('incomplete-auftraege-loading').innerHTML = `
+                    <div class="alert alert-danger">
+                        Fehler beim Laden der unvollständigen Aufträge: ${error}
+                    </div>
+                `;
+            });
+    }
+    
+    // Suche
+    document.getElementById('btn-search').addEventListener('click', searchAuftraege);
+    document.getElementById('search-auftrag').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') searchAuftraege();
+    });
+    
+    function searchAuftraege() {
+        const query = document.getElementById('search-auftrag').value.trim();
+        if (!query) {
+            alert('Bitte Suchbegriff eingeben!');
+            return;
+        }
+        
+        // Suche nach Auftragsnummer oder Kundenname
+        Promise.all([
+            fetch('/api/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'auftrag', query: query })
+            }).then(r => r.json()),
+            fetch('/api/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'kunde', query: query })
+            }).then(r => r.json())
+        ]).then(([auftragsResults, kundenResults]) => {
+            const allResults = [...auftragsResults.results, ...kundenResults.results];
+            // Duplikate entfernen
+            const uniqueResults = Array.from(new Map(allResults.map(item => [item.id, item])).values());
+            
+            displaySearchResults(uniqueResults);
+        }).catch(error => {
+            console.error('Suchfehler:', error);
+            alert('Fehler bei der Suche: ' + error);
+        });
+    }
+    
+    function displaySearchResults(results) {
+        const resultsList = document.getElementById('results-list');
+        const searchResults = document.getElementById('search-results');
+        
+        if (results.length === 0) {
+            resultsList.innerHTML = '<div class="alert alert-warning">Keine Aufträge gefunden</div>';
+        } else {
+            resultsList.innerHTML = results.map(item => `
+                <a href="#" class="list-group-item list-group-item-action" onclick="loadAuftrag(${item.id}); return false;">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1"><strong>${item.auftrag_nr}</strong></h6>
+                        <small>${item.datum || 'Kein Datum'}</small>
+                    </div>
+                    <p class="mb-1">${item.kunde_name || '<span class="text-muted">Kein Name</span>'}</p>
+                    <small>KZ: ${item.kennzeichen || '-'} | VIN: ${item.vin ? item.vin.substring(0, 10) + '...' : '-'}</small>
+                </a>
+            `).join('');
+        }
+        
+        searchResults.style.display = 'block';
+    }
+    
+    function loadAuftrag(id) {
+        fetch(`/api/archive/detail/${id}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) throw new Error(data.error);
+                
+                // Speichere Original-Daten mit ID für PDF-Buttons
+                originalData = { ...data };
+                window.currentAuftragId = id;
+                
+                // Fülle Formular
+                document.getElementById('edit-id').value = data.id;
+                document.getElementById('edit-auftrag-nr').value = data.auftrag_nr || '';
+                document.getElementById('edit-kunden-nr').value = data.kunden_nr || '';
+                document.getElementById('edit-name').value = data.kunde_name || '';
+                document.getElementById('edit-datum').value = data.datum || '';
+                document.getElementById('edit-kennzeichen').value = data.kennzeichen || '';
+                document.getElementById('edit-vin').value = data.vin || '';
+                
+                // Zeige Original-Daten
+                const originalTable = document.getElementById('original-data-table');
+                originalTable.innerHTML = `
+                    <tr><th>Feld</th><th>Aktueller Wert</th></tr>
+                    <tr><td>Auftragsnummer</td><td>${data.auftrag_nr || '<span class="text-muted">-</span>'}</td></tr>
+                    <tr><td>Kundennummer</td><td>${data.kunden_nr || '<span class="text-muted">-</span>'}</td></tr>
+                    <tr><td>Name</td><td>${data.kunde_name || '<span class="text-muted">-</span>'}</td></tr>
+                    <tr><td>Datum</td><td>${data.datum || '<span class="text-muted">-</span>'}</td></tr>
+                    <tr><td>Kennzeichen</td><td>${data.kennzeichen || '<span class="text-muted">-</span>'}</td></tr>
+                    <tr><td>VIN</td><td>${data.vin || '<span class="text-muted">-</span>'}</td></tr>
+                `;
+                
+                // Lade PDF in iframe
+                const pdfViewer = document.getElementById('pdf-viewer');
+                const pdfUrl = `/api/archive/view/${data.id}`;
+                pdfViewer.src = pdfUrl;
+                
+                // Prüfe ob PDF geladen wurde (nach 3 Sekunden)
+                setTimeout(() => {
+                    try {
+                        if (pdfViewer.contentDocument === null || pdfViewer.contentDocument.body.innerHTML === '') {
+                            // Fallback anzeigen wenn iframe leer
+                            document.getElementById('pdf-fallback').style.display = 'flex';
+                            document.getElementById('pdf-fallback').style.flexDirection = 'column';
+                            document.getElementById('pdf-fallback').style.justifyContent = 'center';
+                            pdfViewer.style.display = 'none';
+                        }
+                    } catch(e) {
+                        // Cross-origin Fehler ignorieren (bedeutet PDF lädt)
+                        console.log('PDF wird geladen...');
+                    }
+                }, 3000);
+                
+                // Zeige Formular
+                document.getElementById('edit-form-container').style.display = 'flex';
+                document.getElementById('edit-form-container').scrollIntoView({ behavior: 'smooth' });
+            })
+            .catch(error => {
+                alert('Fehler beim Laden: ' + error);
+            });
+    }
+    
+    // VIN-Validierung
+    document.getElementById('edit-vin').addEventListener('input', function() {
+        const vin = this.value.toUpperCase();
+        const validation = document.getElementById('vin-validation');
+        
+        if (vin.length === 0) {
+            validation.textContent = '';
+            validation.className = 'form-text';
+        } else if (vin.length < 17) {
+            validation.textContent = `Noch ${17 - vin.length} Zeichen`;
+            validation.className = 'form-text text-warning';
+        } else if (vin.length === 17) {
+            // Prüfe auf verbotene Zeichen (I, O, Q)
+            if (/[IOQ]/.test(vin)) {
+                validation.textContent = '⚠ VINs enthalten kein I, O oder Q';
+                validation.className = 'form-text text-warning';
+            } else {
+                validation.textContent = '✓ VIN korrekt';
+                validation.className = 'form-text text-success';
+            }
+        } else {
+            validation.textContent = '✗ VIN zu lang (max. 17 Zeichen)';
+            validation.className = 'form-text text-danger';
+        }
+        
+        this.value = vin;
+    });
+    
+    // Formular absenden
+    document.getElementById('edit-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = {
+            id: document.getElementById('edit-id').value,
+            auftrag_nr: document.getElementById('edit-auftrag-nr').value,
+            kunden_nr: document.getElementById('edit-kunden-nr').value || null,
+            kunde_name: document.getElementById('edit-name').value || null,
+            datum: document.getElementById('edit-datum').value || null,
+            kennzeichen: document.getElementById('edit-kennzeichen').value || null,
+            vin: document.getElementById('edit-vin').value || null
+        };
+        
+        fetch('/api/archive/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Zeige Erfolgs-Toast
+                const toast = new bootstrap.Toast(document.getElementById('toast-success'));
+                toast.show();
+                
+                // Reset nach 2 Sekunden und neu laden der unvollständigen Aufträge
+                setTimeout(() => {
+                    resetForm();
+                    loadIncompleteAuftraege();
+                }, 2000);
+            } else {
+                throw new Error(data.error || 'Unbekannter Fehler');
+            }
+        })
+        .catch(error => {
+            document.getElementById('toast-error-message').innerHTML = 
+                '<i class="bi bi-exclamation-triangle"></i> ' + error;
+            const toast = new bootstrap.Toast(document.getElementById('toast-error'));
+            toast.show();
+        });
+    });
+    
+    // Abbrechen/Reset
+    document.getElementById('btn-reset').addEventListener('click', resetForm);
+    document.getElementById('btn-cancel').addEventListener('click', resetForm);
+    
+    function resetForm() {
+        document.getElementById('edit-form').reset();
+        document.getElementById('edit-form-container').style.display = 'none';
+        document.getElementById('search-results').style.display = 'none';
+        document.getElementById('search-auftrag').value = '';
+        document.getElementById('pdf-viewer').src = 'about:blank';
+        originalData = {};
+        window.currentAuftragId = null;
+    }
+    
+    // PDF-Buttons (alte Buttons im Formular)
+    document.getElementById('btn-view-pdf').addEventListener('click', function() {
+        if (window.currentAuftragId) {
+            window.open(`/api/archive/view/${window.currentAuftragId}`, '_blank');
+        }
+    });
+    
+    document.getElementById('btn-download-pdf').addEventListener('click', function() {
+        if (window.currentAuftragId) {
+            window.location.href = `/api/archive/download/${window.currentAuftragId}`;
+        }
+    });
+    
+    // PDF-Buttons im Viewer-Header
+    document.getElementById('btn-pdf-new-tab').addEventListener('click', function() {
+        if (window.currentAuftragId) {
+            window.open(`/api/archive/view/${window.currentAuftragId}`, '_blank');
+        }
+    });
+    
+    document.getElementById('btn-pdf-download').addEventListener('click', function() {
+        if (window.currentAuftragId) {
+            window.location.href = `/api/archive/download/${window.currentAuftragId}`;
+        }
+    });
+    
+    // Fallback-Button
+    document.getElementById('btn-fallback-open').addEventListener('click', function() {
+        if (window.currentAuftragId) {
+            window.open(`/api/archive/view/${window.currentAuftragId}`, '_blank');
+        }
+    });
+    
+    // Als vollständig markieren
+    function markAsComplete(id, auftragNr) {
+        if (!confirm(`Auftrag ${auftragNr} als vollständig markieren?\n\nDieser Auftrag wird aus der Liste entfernt und bei zukünftigen Suchen nach fehlenden Daten nicht mehr angezeigt.`)) {
+            return;
+        }
+        
+        fetch('/api/archive/mark-complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Zeige Erfolgs-Toast
+                const toastEl = document.getElementById('toast-success');
+                const toastBody = toastEl.querySelector('.toast-body');
+                toastBody.innerHTML = `<i class="bi bi-check-circle"></i> Auftrag ${auftragNr} als vollständig markiert!`;
+                const toast = new bootstrap.Toast(toastEl);
+                toast.show();
+                
+                // Lade Liste neu
+                loadIncompleteAuftraege();
+            } else {
+                throw new Error(data.error || 'Unbekannter Fehler');
+            }
+        })
+        .catch(error => {
+            document.getElementById('toast-error-message').innerHTML = 
+                `<i class="bi bi-exclamation-triangle"></i> Fehler: ${error}`;
+            const toast = new bootstrap.Toast(document.getElementById('toast-error'));
+            toast.show();
+        });
+    }
+</script>
+{% endblock %}

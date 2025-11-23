@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+
+{% block title %}Kundenliste - Werkstatt-Archiv{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4"><i class="bi bi-people"></i> Kundenliste mit Fahrzeugen</h2>
+        <p class="text-muted">Übersicht aller Kunden und deren Fahrzeuge aus der Datenbank</p>
+    </div>
+</div>
+
+<!-- Suchfilter -->
+<div class="row mb-4">
+    <div class="col-lg-10 mx-auto">
+        <div class="card">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <input type="text" class="form-control" id="filter-kunde" placeholder="Nach Kunde filtern...">
+                    </div>
+                    <div class="col-md-4">
+                        <input type="text" class="form-control" id="filter-kennzeichen" placeholder="Nach Kennzeichen...">
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-secondary w-100" onclick="resetFilter()">
+                            <i class="bi bi-x-circle"></i> Reset
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Statistik -->
+<div class="row mb-4">
+    <div class="col-lg-10 mx-auto">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="card bg-primary text-white">
+                    <div class="card-body text-center">
+                        <h3 id="stat-customers">-</h3>
+                        <p class="mb-0">Kunden gesamt</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-success text-white">
+                    <div class="card-body text-center">
+                        <h3 id="stat-vehicles">-</h3>
+                        <p class="mb-0">Fahrzeuge</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-info text-white">
+                    <div class="card-body text-center">
+                        <h3 id="stat-auftraege">-</h3>
+                        <p class="mb-0">Aufträge gesamt</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Kundenliste -->
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-table"></i> Kunden & Fahrzeuge</h5>
+                <button class="btn btn-sm btn-light" onclick="exportToCSV()">
+                    <i class="bi bi-download"></i> CSV Export
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div id="loading" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Lade...</span>
+                    </div>
+                </div>
+                <div id="customers-table" style="display: none;">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped mb-0">
+                            <thead class="table-dark sticky-top">
+                                <tr>
+                                    <th style="cursor: pointer;" onclick="sortTable('kunde_name')">
+                                        Kunde <i class="bi bi-arrow-down-up"></i>
+                                    </th>
+                                    <th style="cursor: pointer;" onclick="sortTable('kennzeichen')">
+                                        Kennzeichen <i class="bi bi-arrow-down-up"></i>
+                                    </th>
+                                    <th style="cursor: pointer;" onclick="sortTable('vin')">
+                                        VIN <i class="bi bi-arrow-down-up"></i>
+                                    </th>
+                                    <th style="cursor: pointer;" onclick="sortTable('auftraege')">
+                                        Aufträge <i class="bi bi-arrow-down-up"></i>
+                                    </th>
+                                    <th>Letzter Auftrag</th>
+                                    <th style="width: 120px;">Aktionen</th>
+                                </tr>
+                            </thead>
+                            <tbody id="customers-tbody">
+                                <!-- Wird per JavaScript gefüllt -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bearbeitungs-Modal -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil-square"></i> Kundendaten bearbeiten</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editForm">
+                    <input type="hidden" id="edit-old-kunde">
+                    <input type="hidden" id="edit-old-kunden-nr">
+                    <input type="hidden" id="edit-old-kennzeichen">
+                    <input type="hidden" id="edit-old-vin">
+
+                    <div class="mb-3">
+                        <label class="form-label">Kundenname</label>
+                        <input type="text" class="form-control" id="edit-kunde-name" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Kundennummer</label>
+                        <input type="text" class="form-control" id="edit-kunden-nr">
+                        <small class="text-muted">Optional</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Kennzeichen</label>
+                        <input type="text" class="form-control" id="edit-kennzeichen">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">VIN (Fahrgestellnummer)</label>
+                        <input type="text" class="form-control" id="edit-vin">
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Hinweis:</strong> Alle Aufträge dieses Kunden/Fahrzeugs werden mit den neuen Daten aktualisiert.
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="button" class="btn btn-primary" onclick="saveCustomer()">
+                    <i class="bi bi-save"></i> Speichern
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    'use strict';
+    
+    let allCustomers = [];
+    let currentSort = { field: 'kunde_name', ascending: true };
+    
+    window.addEventListener('DOMContentLoaded', function() {
+        loadCustomers();
+        
+        // Filter-Events
+        document.getElementById('filter-kunde').addEventListener('input', filterTable);
+        document.getElementById('filter-kennzeichen').addEventListener('input', filterTable);
+    });
+    
+    function loadCustomers() {
+        fetch('/api/customers/list')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                allCustomers = data.customers || [];
+                
+                // Statistiken aktualisieren
+                document.getElementById('stat-customers').textContent = data.total_customers || 0;
+                document.getElementById('stat-vehicles').textContent = data.total_vehicles || 0;
+                document.getElementById('stat-auftraege').textContent = data.total_auftraege || 0;
+                
+                // Tabelle anzeigen
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('customers-table').style.display = 'block';
+                
+                renderTable(allCustomers);
+            })
+            .catch(function(e) {
+                document.getElementById('loading').innerHTML = 
+                    '<div class="alert alert-danger">Fehler: ' + e + '</div>';
+            });
+    }
+    
+    function renderTable(customers) {
+        var tbody = document.getElementById('customers-tbody');
+        
+        if (customers.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">Keine Kunden gefunden</td></tr>';
+            return;
+        }
+        
+        var html = '';
+        for (var i = 0; i < customers.length; i++) {
+            var c = customers[i];
+            html += '<tr>';
+            html += '<td><strong>' + (c.kunde_name || '-') + '</strong>';
+            if (c.kunden_nr) html += '<br><small class="text-muted">Kd.Nr.: ' + c.kunden_nr + '</small>';
+            html += '</td>';
+            html += '<td>' + (c.kennzeichen || '<span class="text-muted">-</span>') + '</td>';
+            html += '<td><small>' + (c.vin || '<span class="text-muted">-</span>') + '</small></td>';
+            html += '<td><span class="badge bg-primary">' + c.auftraege_count + '</span></td>';
+            html += '<td><small>' + (c.last_auftrag || '-') + '<br>' + (c.last_date || '') + '</small></td>';
+            html += '<td>';
+            html += '<div class="btn-group btn-group-sm" role="group">';
+            html += '<button class="btn btn-outline-primary" onclick="showAuftraege(\'' +
+                    (c.kunde_name || '').replace(/'/g, "\\'") + '\', \'' +
+                    (c.kennzeichen || '').replace(/'/g, "\\'") + '\')" title="Aufträge anzeigen">';
+            html += '<i class="bi bi-list"></i>';
+            html += '</button>';
+            html += '<button class="btn btn-outline-success" onclick="editCustomer(\'' +
+                    (c.kunde_name || '').replace(/'/g, "\\'") + '\', \'' +
+                    (c.kunden_nr || '').replace(/'/g, "\\'") + '\', \'' +
+                    (c.kennzeichen || '').replace(/'/g, "\\'") + '\', \'' +
+                    (c.vin || '').replace(/'/g, "\\'") + '\')" title="Bearbeiten">';
+            html += '<i class="bi bi-pencil"></i>';
+            html += '</button>';
+            html += '</div>';
+            html += '</td>';
+            html += '</tr>';
+        }
+        tbody.innerHTML = html;
+    }
+    
+    function filterTable() {
+        var kundeFilter = document.getElementById('filter-kunde').value.toLowerCase();
+        var kzFilter = document.getElementById('filter-kennzeichen').value.toLowerCase();
+        
+        var filtered = allCustomers.filter(function(c) {
+            var matchKunde = !kundeFilter || (c.kunde_name || '').toLowerCase().includes(kundeFilter);
+            var matchKz = !kzFilter || (c.kennzeichen || '').toLowerCase().includes(kzFilter);
+            return matchKunde && matchKz;
+        });
+        
+        renderTable(filtered);
+    }
+    
+    window.resetFilter = function() {
+        document.getElementById('filter-kunde').value = '';
+        document.getElementById('filter-kennzeichen').value = '';
+        renderTable(allCustomers);
+    };
+    
+    window.sortTable = function(field) {
+        if (currentSort.field === field) {
+            currentSort.ascending = !currentSort.ascending;
+        } else {
+            currentSort.field = field;
+            currentSort.ascending = true;
+        }
+        
+        var sorted = allCustomers.slice().sort(function(a, b) {
+            var valA = a[field] || '';
+            var valB = b[field] || '';
+            
+            if (field === 'auftraege') {
+                valA = parseInt(a.auftraege_count) || 0;
+                valB = parseInt(b.auftraege_count) || 0;
+            }
+            
+            if (valA < valB) return currentSort.ascending ? -1 : 1;
+            if (valA > valB) return currentSort.ascending ? 1 : -1;
+            return 0;
+        });
+        
+        renderTable(sorted);
+    };
+    
+    window.showAuftraege = function(kunde, kennzeichen) {
+        var query = kunde || kennzeichen;
+        if (query) {
+            window.location.href = '/search?query=' + encodeURIComponent(query);
+        }
+    };
+    
+    window.exportToCSV = function() {
+        var csv = 'Kunde,Kunden-Nr,Kennzeichen,VIN,Anzahl Aufträge,Letzter Auftrag,Datum\n';
+
+        for (var i = 0; i < allCustomers.length; i++) {
+            var c = allCustomers[i];
+            csv += '"' + (c.kunde_name || '') + '",';
+            csv += '"' + (c.kunden_nr || '') + '",';
+            csv += '"' + (c.kennzeichen || '') + '",';
+            csv += '"' + (c.vin || '') + '",';
+            csv += c.auftraege_count + ',';
+            csv += '"' + (c.last_auftrag || '') + '",';
+            csv += '"' + (c.last_date || '') + '"\n';
+        }
+
+        var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        var link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'kundenliste_' + new Date().toISOString().split('T')[0] + '.csv';
+        link.click();
+    };
+
+    window.editCustomer = function(kundeName, kundenNr, kennzeichen, vin) {
+        // Alte Werte speichern
+        document.getElementById('edit-old-kunde').value = kundeName || '';
+        document.getElementById('edit-old-kunden-nr').value = kundenNr || '';
+        document.getElementById('edit-old-kennzeichen').value = kennzeichen || '';
+        document.getElementById('edit-old-vin').value = vin || '';
+
+        // Formular füllen
+        document.getElementById('edit-kunde-name').value = kundeName || '';
+        document.getElementById('edit-kunden-nr').value = kundenNr || '';
+        document.getElementById('edit-kennzeichen').value = kennzeichen || '';
+        document.getElementById('edit-vin').value = vin || '';
+
+        // Modal öffnen
+        var modal = new bootstrap.Modal(document.getElementById('editModal'));
+        modal.show();
+    };
+
+    window.saveCustomer = function() {
+        var btn = event.target;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Speichere...';
+
+        var data = {
+            old_kunde_name: document.getElementById('edit-old-kunde').value,
+            old_kunden_nr: document.getElementById('edit-old-kunden-nr').value,
+            old_kennzeichen: document.getElementById('edit-old-kennzeichen').value,
+            old_vin: document.getElementById('edit-old-vin').value,
+            new_kunde_name: document.getElementById('edit-kunde-name').value,
+            new_kunden_nr: document.getElementById('edit-kunden-nr').value,
+            new_kennzeichen: document.getElementById('edit-kennzeichen').value,
+            new_vin: document.getElementById('edit-vin').value
+        };
+
+        fetch('/api/customers/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(result) {
+            if (result.success) {
+                // Modal schließen
+                bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
+
+                // Erfolgsmeldung
+                var alert = document.createElement('div');
+                alert.className = 'alert alert-success alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3';
+                alert.style.zIndex = '9999';
+                alert.innerHTML = '<i class="bi bi-check-circle"></i> ' + result.message +
+                    ' (' + result.updated_count + ' Aufträge aktualisiert)' +
+                    '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+                document.body.appendChild(alert);
+
+                setTimeout(function() { alert.remove(); }, 5000);
+
+                // Tabelle neu laden
+                loadCustomers();
+            } else {
+                throw new Error(result.error || 'Fehler beim Speichern');
+            }
+        })
+        .catch(function(e) {
+            alert('Fehler: ' + e.message);
+        })
+        .finally(function() {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-save"></i> Speichern';
+        });
+    };
+})();
+</script>
+{% endblock %}
