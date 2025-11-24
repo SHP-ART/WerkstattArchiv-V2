@@ -121,6 +121,60 @@
     </div>
 </div>
 
+<!-- Ordner-Import -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+                <i class="bi bi-folder-plus"></i> Ordner importieren
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <p class="mb-2">
+                            <strong>Ordner mit mehreren PDFs zu einem Auftrag:</strong> 
+                            Scannt Ordner im Eingangsverzeichnis und verarbeitet alle PDFs zusammen.
+                        </p>
+                        <ul class="mb-3 small text-muted">
+                            <li>Erkennt Auftragsnummer aus Ordnername oder PDFs</li>
+                            <li>Kombiniert alle PDFs: Seite 1 = Auftrag, Rest = Anhang</li>
+                            <li>Löscht Ordner nach erfolgreichem Import</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-warning btn-lg" id="btn-import-folders">
+                                <i class="bi bi-folder-plus"></i> Ordner importieren
+                            </button>
+                            <button class="btn btn-outline-warning" id="btn-refresh-folders">
+                                <i class="bi bi-arrow-clockwise"></i> Liste aktualisieren
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="folder-list" class="mt-3" style="display: none;">
+                    <hr>
+                    <h6>Gefundene Ordner im Eingang:</h6>
+                    <div id="folder-items" class="list-group"></div>
+                </div>
+                
+                <div id="import-progress" class="mt-3" style="display: none;">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span id="import-progress-text">Importiere Ordner...</span>
+                        <span id="import-progress-percent">0%</span>
+                    </div>
+                    <div class="progress" style="height: 25px;">
+                        <div id="import-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-warning" role="progressbar" style="width: 0%">0 / 0</div>
+                    </div>
+                </div>
+                
+                <div id="import-status" class="mt-3" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Live-Log -->
 <div class="row mb-4">
     <div class="col-12">
@@ -289,6 +343,140 @@
                 this.innerHTML = '<i class="bi bi-play-fill"></i> Watcher starten';
             });
     });
+    
+    // Ordner-Import: Liste aktualisieren
+    document.getElementById('btn-refresh-folders').addEventListener('click', function() {
+        loadFolders();
+    });
+    
+    document.getElementById('btn-import-folders').addEventListener('click', function() {
+        loadFolders();
+    });
+    
+    function loadFolders() {
+        const folderList = document.getElementById('folder-list');
+        const folderItems = document.getElementById('folder-items');
+        
+        folderList.style.display = 'block';
+        folderItems.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-warning" role="status"></div></div>';
+        
+        fetch('/api/folders/list')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.folders.length > 0) {
+                    folderItems.innerHTML = data.folders.map(folder => `
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="bi bi-folder-fill text-warning"></i>
+                                <strong>${folder.name}</strong>
+                                <span class="badge bg-secondary ms-2">${folder.pdf_count} PDFs</span>
+                                ${folder.suggested_auftrag ? `<span class="badge bg-info ms-1">~${folder.suggested_auftrag}</span>` : ''}
+                            </div>
+                            <button class="btn btn-sm btn-warning" onclick="importSingleFolder('${folder.name}')">
+                                <i class="bi bi-download"></i> Importieren
+                            </button>
+                        </div>
+                    `).join('');
+                    
+                    // "Alle importieren" Button hinzufügen
+                    if (data.folders.length > 1) {
+                        folderItems.innerHTML += `
+                            <div class="list-group-item bg-light">
+                                <button class="btn btn-warning w-100" onclick="importAllFolders()">
+                                    <i class="bi bi-folder-plus"></i> Alle ${data.folders.length} Ordner importieren
+                                </button>
+                            </div>
+                        `;
+                    }
+                } else {
+                    folderItems.innerHTML = '<div class="list-group-item text-muted text-center">Keine Ordner gefunden</div>';
+                }
+            })
+            .catch(error => {
+                folderItems.innerHTML = `<div class="list-group-item text-danger">Fehler: ${error}</div>`;
+            });
+    }
+    
+    function importSingleFolder(folderName) {
+        if (!confirm(`Ordner "${folderName}" importieren?`)) return;
+        
+        doImport([folderName]);
+    }
+    
+    function importAllFolders() {
+        fetch('/api/folders/list')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.folders.length > 0) {
+                    const folderNames = data.folders.map(f => f.name);
+                    if (confirm(`Alle ${folderNames.length} Ordner importieren?\n\n${folderNames.join(', ')}`)) {
+                        doImport(folderNames);
+                    }
+                }
+            });
+    }
+    
+    function doImport(folderNames) {
+        const progressDiv = document.getElementById('import-progress');
+        const statusDiv = document.getElementById('import-status');
+        const progressBar = document.getElementById('import-progress-bar');
+        const progressText = document.getElementById('import-progress-text');
+        const progressPercent = document.getElementById('import-progress-percent');
+        
+        progressDiv.style.display = 'block';
+        statusDiv.style.display = 'none';
+        
+        let current = 0;
+        const total = folderNames.length;
+        
+        progressText.textContent = `Importiere ${total} Ordner...`;
+        progressPercent.textContent = '0%';
+        progressBar.style.width = '0%';
+        progressBar.textContent = `0 / ${total}`;
+        
+        fetch('/api/folders/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ folders: folderNames })
+        })
+        .then(response => response.json())
+        .then(data => {
+            progressDiv.style.display = 'none';
+            statusDiv.style.display = 'block';
+            
+            if (data.success) {
+                const successful = data.results.filter(r => r.success).length;
+                const failed = data.results.filter(r => !r.success).length;
+                
+                statusDiv.className = failed > 0 ? 'alert alert-warning' : 'alert alert-success';
+                statusDiv.innerHTML = `
+                    <i class="bi bi-${failed > 0 ? 'exclamation-triangle' : 'check-circle'}"></i>
+                    <strong>Import abgeschlossen!</strong><br>
+                    Erfolgreich: ${successful} | Fehler: ${failed}<br><br>
+                    ${data.results.map(r => `
+                        <small>
+                            ${r.success ? '✓' : '✗'} ${r.folder}: ${r.message || r.error}
+                        </small>
+                    `).join('<br>')}
+                `;
+                
+                // Liste aktualisieren und Stats neu laden
+                setTimeout(() => {
+                    loadFolders();
+                    loadStats();
+                }, 2000);
+            } else {
+                statusDiv.className = 'alert alert-danger';
+                statusDiv.innerHTML = `<i class="bi bi-x-circle"></i> <strong>Fehler:</strong> ${data.error}`;
+            }
+        })
+        .catch(error => {
+            progressDiv.style.display = 'none';
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'alert alert-danger';
+            statusDiv.innerHTML = `<i class="bi bi-x-circle"></i> <strong>Fehler:</strong> ${error}`;
+        });
+    }
     
     // Watcher stoppen
     document.getElementById('btn-stop-watcher').addEventListener('click', function() {

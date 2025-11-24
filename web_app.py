@@ -1186,9 +1186,25 @@ def manual_scan():
                 'error': f'Eingangsordner nicht gefunden: {input_folder}'
             }), 404
 
-        # Scanne nach PDFs
+        # Scanne nach PDFs (nur direkte Kinder, keine Unterordner)
         pdf_files = list(input_folder.glob('*.pdf'))
+        
+        # Prüfe auch ob es Unterordner mit PDFs gibt
+        folder_count = 0
+        for item in input_folder.iterdir():
+            if item.is_dir() and not item.name.startswith('.') and item.name not in ['Fehler', 'temp_backup', '.trash']:
+                if list(item.glob('*.pdf')):
+                    folder_count += 1
 
+        if not pdf_files and folder_count > 0:
+            return jsonify({
+                'success': False,
+                'processed': 0,
+                'success_count': 0,
+                'error_count': 0,
+                'message': f'Keine einzelnen PDFs gefunden. Es gibt {folder_count} Ordner mit PDFs - bitte den "Ordner importieren" Button verwenden!'
+            }), 400
+        
         if not pdf_files:
             return jsonify({
                 'success': True,
@@ -1206,24 +1222,21 @@ def manual_scan():
 
         for pdf_file in pdf_files:
             try:
-                # Verarbeite PDF
-                result = archive.process_pdf(
-                    pdf_path=pdf_file,
-                    archiv_root=archiv_root,
-                    db_path=db_path,
-                    config=c
-                )
-
-                if result.get('success'):
+                # Verarbeite PDF mit process_single_pdf aus main.py
+                from main import process_single_pdf
+                
+                success = process_single_pdf(pdf_file, c)
+                
+                if success:
                     success_count += 1
-                    logger.info(f"Verarbeitet: {pdf_file.name} -> {result.get('auftrag_nr')}")
+                    logger.info(f"✓ Verarbeitet: {pdf_file.name}")
                 else:
                     error_count += 1
-                    logger.error(f"Fehler bei {pdf_file.name}: {result.get('error')}")
+                    logger.error(f"✗ Fehler bei {pdf_file.name}")
 
             except Exception as e:
                 error_count += 1
-                logger.error(f"Fehler beim Verarbeiten von {pdf_file.name}: {e}")
+                logger.error(f"✗ Exception beim Verarbeiten von {pdf_file.name}: {e}")
 
         logger.info(f"Manueller Scan abgeschlossen: {success_count} erfolgreich, {error_count} Fehler")
 
@@ -1684,6 +1697,134 @@ def create_zip_backup():
         
     except Exception as e:
         logger.error(f"Fehler beim ZIP-Backup: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================================
+# ROUTES - Folder Import
+# ============================================================
+
+@app.route('/api/folders/list', methods=['GET'])
+def list_folders():
+    """API: Liste alle Ordner im Eingangsverzeichnis"""
+    try:
+        c = get_config()
+        input_folder = c.get_input_folder()
+        
+        if not input_folder or not input_folder.exists():
+            return jsonify({'success': False, 'error': 'Eingangsordner nicht gefunden'}), 400
+        
+        folders = []
+        
+        # Finde alle Unterordner (nicht rekursiv, nur direkte Kinder)
+        for item in input_folder.iterdir():
+            if item.is_dir() and not item.name.startswith('.'):
+                # Ignoriere spezielle Ordner
+                if item.name in ['Fehler', 'temp_backup', '.trash']:
+                    continue
+                
+                # Zähle PDFs im Ordner
+                pdf_count = len(list(item.glob('*.pdf')))
+                
+                if pdf_count > 0:
+                    # Versuche Auftragsnummer aus Ordnername zu extrahieren
+                    import re
+                    suggested_auftrag = None
+                    
+                    # Suche nach Zahlen im Ordnername (5-6 Ziffern)
+                    match = re.search(r'\b(\d{5,6})\b', item.name)
+                    if match:
+                        suggested_auftrag = match.group(1)
+                    
+                    folders.append({
+                        'name': item.name,
+                        'path': str(item),
+                        'pdf_count': pdf_count,
+                        'suggested_auftrag': suggested_auftrag
+                    })
+        
+        # Sortiere nach Name
+        folders.sort(key=lambda x: x['name'])
+        
+        return jsonify({
+            'success': True,
+            'folders': folders,
+            'count': len(folders)
+        })
+        
+    except Exception as e:
+        logger.error(f"Fehler beim Listen der Ordner: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/folders/import', methods=['POST'])
+def import_folders():
+    """API: Importiere mehrere Ordner"""
+    try:
+        import folder_import
+        
+        c = get_config()
+        input_folder = c.get_input_folder()
+        
+        data = request.get_json() or {}
+        folder_names = data.get('folders', [])
+        
+        if not folder_names:
+            return jsonify({'success': False, 'error': 'Keine Ordner angegeben'}), 400
+        
+        results = []
+        
+        for folder_name in folder_names:
+            folder_path = input_folder / folder_name
+            
+            if not folder_path.exists() or not folder_path.is_dir():
+                results.append({
+                    'folder': folder_name,
+                    'success': False,
+                    'error': 'Ordner nicht gefunden'
+                })
+                continue
+            
+            try:
+                logger.info(f"Importiere Ordner: {folder_name}")
+                
+                # Nutze folder_import.process_folder_for_import
+                success = folder_import.process_folder_for_import(folder_path, c)
+                
+                if success:
+                    results.append({
+                        'folder': folder_name,
+                        'success': True,
+                        'message': 'Erfolgreich importiert und archiviert'
+                    })
+                else:
+                    results.append({
+                        'folder': folder_name,
+                        'success': False,
+                        'error': 'Import fehlgeschlagen (siehe Logs)'
+                    })
+                    
+            except Exception as e:
+                logger.error(f"Fehler beim Import von {folder_name}: {e}", exc_info=True)
+                results.append({
+                    'folder': folder_name,
+                    'success': False,
+                    'error': str(e)
+                })
+        
+        # Zähle Erfolge
+        successful = sum(1 for r in results if r['success'])
+        
+        return jsonify({
+            'success': True,
+            'results': results,
+            'total': len(results),
+            'successful': successful,
+            'failed': len(results) - successful
+        })
+        
+    except Exception as e:
+        logger.error(f"Fehler beim Ordner-Import: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
