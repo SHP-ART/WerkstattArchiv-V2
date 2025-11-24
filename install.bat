@@ -27,6 +27,26 @@ echo [OK] Python gefunden:
 python --version
 echo.
 
+REM Pruefe ob Git installiert ist
+echo [*] Pruefe Git Installation...
+git --version >nul 2>&1
+if errorlevel 1 (
+    echo [WARNUNG] Git ist nicht installiert!
+    echo.
+    echo Git wird fuer das Update-System benoetigt (update.bat).
+    echo Bitte installieren Sie Git von:
+    echo https://git-scm.com/download/win
+    echo.
+    echo Installation kann fortgesetzt werden, aber Updates funktionieren nicht.
+    echo.
+    choice /C JN /M "Trotzdem fortfahren"
+    if errorlevel 2 exit /b 1
+) else (
+    echo [OK] Git gefunden:
+    git --version
+)
+echo.
+
 REM Erstelle Virtual Environment
 echo ============================================================
 echo   Erstelle Virtual Environment...

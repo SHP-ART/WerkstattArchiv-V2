@@ -31,6 +31,29 @@ PYTHON_VERSION=$(python3 --version 2>&1)
 echo -e "${GREEN}✓${NC} $PYTHON_VERSION"
 echo ""
 
+# Prüfe Git Installation
+echo -e "${BLUE}→${NC} Prüfe Git Installation..."
+if ! command -v git &> /dev/null; then
+    echo -e "${YELLOW}⚠${NC}  Git ist nicht installiert!"
+    echo ""
+    echo "Git wird für das Update-System benötigt (update.sh)."
+    echo "Installationshinweise:"
+    echo "  macOS: brew install git"
+    echo "  Ubuntu/Debian: sudo apt install git"
+    echo ""
+    echo "Installation kann fortgesetzt werden, aber Updates funktionieren nicht."
+    echo ""
+    read -p "Trotzdem fortfahren? (j/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Jj]$ ]]; then
+        exit 1
+    fi
+else
+    GIT_VERSION=$(git --version 2>&1)
+    echo -e "${GREEN}✓${NC} $GIT_VERSION"
+fi
+echo ""
+
 # 2. Virtual Environment erstellen
 echo -e "${YELLOW}[2/6]${NC} Erstelle Virtual Environment..."
 if [ -d ".venv" ]; then
