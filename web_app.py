@@ -1620,6 +1620,73 @@ def backup_log():
         return f'Fehler: {e}', 500
 
 
+@app.route('/api/backup/create-zip', methods=['POST'])
+def create_zip_backup():
+    """API: ZIP-Backup erstellen"""
+    try:
+        import backup
+        
+        c = get_config()
+        
+        # Prüfe ob Backup-Ziel gesetzt ist
+        backup_target = c.get_backup_target_dir()
+        if not backup_target:
+            return jsonify({
+                'success': False, 
+                'error': 'Kein Backup-Zielordner konfiguriert! Bitte unter Einstellungen setzen.'
+            }), 400
+        
+        # Parameter aus Request
+        data = request.get_json() or {}
+        include_archive = data.get('include_archive', False)
+        
+        # Pfade
+        archiv_root = c.get_archiv_root()
+        db_path = archiv_root / 'werkstatt.db'
+        
+        # Config-Datei finden (.json oder .yaml)
+        config_path = None
+        for ext in ['.json', '.yaml']:
+            candidate = Path(f'.archiv_config{ext}')
+            if candidate.exists():
+                config_path = candidate
+                break
+        
+        if not config_path:
+            return jsonify({
+                'success': False,
+                'error': 'Keine Konfigurationsdatei gefunden'
+            }), 500
+        
+        logger.info(f"Starte ZIP-Backup (include_archive={include_archive})")
+        
+        # Backup erstellen
+        backup_path = backup.create_backup(
+            archiv_root=archiv_root,
+            db_path=db_path,
+            config_path=config_path,
+            backup_target_dir=backup_target,
+            include_archive=include_archive
+        )
+        
+        # Alte Backups aufräumen (behalte 10 neueste)
+        backup.cleanup_old_backups(backup_target, keep_count=10)
+        
+        # Datei-Größe ermitteln
+        size_bytes = backup_path.stat().st_size
+        
+        return jsonify({
+            'success': True,
+            'path': str(backup_path),
+            'filename': backup_path.name,
+            'size_bytes': size_bytes
+        })
+        
+    except Exception as e:
+        logger.error(f"Fehler beim ZIP-Backup: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # ============================================================
 # ROUTES - Keywords Management
 # ============================================================

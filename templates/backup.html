@@ -46,6 +46,49 @@
     </div>
 </div>
 
+<!-- ZIP Backup -->
+<div class="row mb-4">
+    <div class="col-lg-12">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="bi bi-file-zip"></i> ZIP-Backup erstellen</h5>
+            </div>
+            <div class="card-body">
+                <p>Erstellt ein komprimiertes ZIP-Backup mit Datenbank, Konfiguration und optional allen PDFs.</p>
+                
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> 
+                    <strong>Inhalt:</strong> werkstatt.db + .archiv_config.* + kunden_index.csv
+                </div>
+                
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="include-archive-pdfs">
+                    <label class="form-check-label" for="include-archive-pdfs">
+                        <strong>Alle PDF-Dateien einschließen</strong>
+                        <br><small class="text-muted">⚠️ Kann sehr groß werden (mehrere GB) und lange dauern!</small>
+                    </label>
+                </div>
+                
+                <div id="zip-backup-progress" class="mb-3" style="display: none;">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span id="zip-backup-progress-text">Erstelle Backup...</span>
+                        <span id="zip-backup-progress-percent"></span>
+                    </div>
+                    <div class="progress" style="height: 25px;">
+                        <div id="zip-backup-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-warning" role="progressbar" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <div id="zip-backup-status" class="mb-3" style="display: none;"></div>
+                
+                <button class="btn btn-warning btn-lg" id="btn-zip-backup" onclick="doZipBackup()">
+                    <i class="bi bi-file-zip"></i> ZIP-Backup erstellen
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Export -->
 <div class="row mb-4">
     <div class="col-lg-12">
@@ -215,6 +258,67 @@
             })
             .catch(function(e) {
                 document.getElementById('backup-log').textContent = 'Fehler beim Laden: ' + e;
+            });
+    }
+    
+    function doZipBackup() {
+        var btn = document.getElementById('btn-zip-backup');
+        var progress = document.getElementById('zip-backup-progress');
+        var status = document.getElementById('zip-backup-status');
+        var includeArchive = document.getElementById('include-archive-pdfs').checked;
+        
+        if (includeArchive && !confirm('Das Backup mit allen PDFs kann sehr groß werden (mehrere GB) und lange dauern!\n\nTrotzdem fortfahren?')) {
+            return;
+        }
+        
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Erstelle ZIP...';
+        
+        progress.style.display = 'block';
+        status.style.display = 'none';
+        
+        var progressText = document.getElementById('zip-backup-progress-text');
+        var progressBar = document.getElementById('zip-backup-progress-bar');
+        
+        progressText.textContent = includeArchive ? 'Erstelle Vollbackup (kann lange dauern)...' : 'Erstelle Backup...';
+        progressBar.style.width = '30%';
+        
+        fetch('/api/backup/create-zip', { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ include_archive: includeArchive })
+        })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                progressBar.style.width = '100%';
+                
+                setTimeout(function() {
+                    progress.style.display = 'none';
+                    
+                    if (data.success) {
+                        status.style.display = 'block';
+                        status.className = 'alert alert-success';
+                        var sizeMB = (data.size_bytes / (1024 * 1024)).toFixed(2);
+                        status.innerHTML = 
+                            '<i class="bi bi-check-circle"></i> <strong>ZIP-Backup erfolgreich erstellt!</strong><br>' +
+                            'Datei: <code>' + data.filename + '</code><br>' +
+                            'Größe: ' + sizeMB + ' MB<br>' +
+                            'Pfad: <code>' + data.path + '</code><br>' +
+                            'Inhalt: ' + (includeArchive ? 'DB + Config + PDFs' : 'DB + Config');
+                    } else {
+                        throw new Error(data.error || 'Unbekannter Fehler');
+                    }
+                }, 500);
+            })
+            .catch(function(e) {
+                progress.style.display = 'none';
+                status.style.display = 'block';
+                status.className = 'alert alert-danger';
+                status.innerHTML = '<i class="bi bi-x-circle"></i> <strong>Fehler:</strong> ' + e;
+            })
+            .finally(function() {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-file-zip"></i> ZIP-Backup erstellen';
             });
     }
     
