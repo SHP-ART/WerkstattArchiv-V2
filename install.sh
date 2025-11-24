@@ -80,8 +80,29 @@ echo ""
 # 5. Requirements installieren
 echo -e "${YELLOW}[5/6]${NC} Installiere Python-Pakete..."
 if [ ! -f "requirements.txt" ]; then
-    echo -e "${RED}✗${NC} requirements.txt nicht gefunden!"
-    exit 1
+    echo -e "${YELLOW}⚠${NC} requirements.txt nicht gefunden - erstelle Fallback..."
+    cat > requirements.txt << 'EOF'
+# Core dependencies
+pytesseract>=0.3.10
+pdf2image>=1.16.3
+Pillow>=10.0.0
+PyPDF2>=3.0.0
+
+# File watching
+watchdog>=3.0.0
+
+# Web-UI
+flask>=3.0.0
+werkzeug>=3.0.0
+waitress>=2.1.2
+
+# Configuration
+PyYAML>=6.0.1
+
+# Utilities
+python-dateutil>=2.8.2
+EOF
+    echo -e "${GREEN}✓${NC} requirements.txt erstellt"
 fi
 
 echo -e "${BLUE}→${NC} Installiere aus requirements.txt..."

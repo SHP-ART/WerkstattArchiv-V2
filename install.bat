@@ -68,6 +68,34 @@ echo [*] Aktualisiere pip...
 python -m pip install --upgrade pip
 
 echo.
+echo [*] Pruefe requirements.txt...
+if not exist requirements.txt (
+    echo [WARNUNG] requirements.txt nicht gefunden - erstelle Fallback...
+    (
+        echo # Core dependencies
+        echo pytesseract^>=0.3.10
+        echo pdf2image^>=1.16.3
+        echo Pillow^>=10.0.0
+        echo PyPDF2^>=3.0.0
+        echo.
+        echo # File watching
+        echo watchdog^>=3.0.0
+        echo.
+        echo # Web-UI
+        echo flask^>=3.0.0
+        echo werkzeug^>=3.0.0
+        echo waitress^>=2.1.2
+        echo.
+        echo # Configuration
+        echo PyYAML^>=6.0.1
+        echo.
+        echo # Utilities
+        echo python-dateutil^>=2.8.2
+    ) > requirements.txt
+    echo [OK] requirements.txt erstellt
+)
+
+echo.
 echo [*] Installiere Abhaengigkeiten aus requirements.txt...
 python -m pip install -r requirements.txt
 
