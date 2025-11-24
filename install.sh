@@ -46,21 +46,58 @@ if [ -d ".venv" ]; then
 fi
 
 if [ ! -d ".venv" ]; then
+    echo -e "${BLUE}→${NC} Erstelle Virtual Environment..."
+    
+    # Prüfe ob python3 venv-Modul hat
+    python3 -m venv --help > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}✗${NC} Python venv-Modul nicht gefunden!"
+        echo -e "${YELLOW}→${NC} Installiere venv-Modul..."
+        
+        # Versuche venv zu installieren (Ubuntu/Debian)
+        if command -v apt-get &> /dev/null; then
+            echo "  sudo apt-get install python3-venv"
+            echo "  Bitte führe obigen Befehl manuell aus und starte dann erneut."
+        elif command -v brew &> /dev/null; then
+            echo "  Python3 über Homebrew sollte venv enthalten."
+            echo "  Falls nicht: brew reinstall python@3"
+        fi
+        exit 1
+    fi
+    
     python3 -m venv .venv
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✓${NC} Virtual Environment erstellt (.venv)"
     else
         echo -e "${RED}✗${NC} Fehler beim Erstellen des Virtual Environment!"
+        echo -e "${YELLOW}Mögliche Lösungen:${NC}"
+        echo "  1. Prüfe Python-Installation: python3 --version"
+        echo "  2. Ubuntu/Debian: sudo apt-get install python3-venv"
+        echo "  3. macOS: brew install python@3"
         exit 1
     fi
+else
+    echo -e "${GREEN}✓${NC} Virtual Environment existiert bereits (.venv)"
 fi
 echo ""
 
 # 3. Virtual Environment aktivieren
 echo -e "${YELLOW}[3/6]${NC} Aktiviere Virtual Environment..."
+
+# Prüfe ob activate-Script existiert
+if [ ! -f ".venv/bin/activate" ]; then
+    echo -e "${RED}✗${NC} .venv/bin/activate nicht gefunden!"
+    echo -e "${YELLOW}→${NC} Virtual Environment könnte beschädigt sein."
+    echo "  Lösche .venv Ordner und starte erneut:"
+    echo "  rm -rf .venv && ./install.sh"
+    exit 1
+fi
+
 source .venv/bin/activate
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓${NC} Virtual Environment aktiviert"
+    # Zeige Python-Version
+    echo -e "${BLUE}→${NC} Python: $(python --version)"
 else
     echo -e "${RED}✗${NC} Fehler beim Aktivieren!"
     exit 1

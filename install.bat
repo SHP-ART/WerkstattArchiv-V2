@@ -37,18 +37,53 @@ if exist ".venv" (
     echo [INFO] Virtual Environment existiert bereits (.venv)
 ) else (
     echo [*] Erstelle .venv...
+    echo [*] Erstelle Virtual Environment...
+    
+    REM Pruefe ob venv-Modul verfuegbar ist
+    python -m venv --help >nul 2>&1
+    if errorlevel 1 (
+        echo [FEHLER] Python venv-Modul nicht gefunden!
+        echo.
+        echo Moegliche Loesungen:
+        echo   1. Python neu installieren von https://www.python.org/
+        echo   2. Bei Installation "Add Python to PATH" aktivieren
+        echo   3. "pip" und "tcl/tk" Module mit installieren
+        pause
+        exit /b 1
+    )
+    
     python -m venv .venv
     if errorlevel 1 (
         echo [FEHLER] Konnte Virtual Environment nicht erstellen!
+        echo.
+        echo Moegliche Loesungen:
+        echo   1. Python Version pruefen: python --version
+        echo   2. Genug Speicherplatz vorhanden?
+        echo   3. Schreibrechte im Verzeichnis vorhanden?
         pause
         exit /b 1
     )
     echo [OK] Virtual Environment erstellt
+) else (
+    echo [OK] Virtual Environment existiert bereits
 )
 echo.
 
 REM Aktiviere Virtual Environment
 echo [*] Aktiviere Virtual Environment...
+
+REM Pruefe ob activate-Script existiert
+if not exist .venv\Scripts\activate.bat (
+    echo [FEHLER] .venv\Scripts\activate.bat nicht gefunden!
+    echo.
+    echo Virtual Environment koennte beschaedigt sein.
+    echo Loesche .venv Ordner und starte erneut:
+    echo   rmdir /s /q .venv
+    echo   install.bat
+    pause
+    exit /b 1
+)
+
 call .venv\Scripts\activate.bat
 if errorlevel 1 (
     echo [FEHLER] Konnte Virtual Environment nicht aktivieren!
@@ -56,6 +91,7 @@ if errorlevel 1 (
     exit /b 1
 )
 echo [OK] Virtual Environment aktiv
+python --version
 echo.
 
 REM Installiere Python-Pakete
