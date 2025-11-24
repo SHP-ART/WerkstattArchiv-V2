@@ -1215,6 +1215,13 @@ def manual_scan():
             })
 
         logger.info(f"Manueller Scan gestartet: {len(pdf_files)} PDFs gefunden")
+        
+        # Log-Nachricht in Queue
+        processing_queue.put({
+            'type': 'info',
+            'message': f'Manueller Scan gestartet: {len(pdf_files)} PDF(s) gefunden',
+            'timestamp': datetime.now().isoformat()
+        })
 
         # Verarbeite alle PDFs
         success_count = 0
@@ -1222,6 +1229,13 @@ def manual_scan():
 
         for pdf_file in pdf_files:
             try:
+                # Log Start
+                processing_queue.put({
+                    'type': 'info',
+                    'message': f'Verarbeite: {pdf_file.name}',
+                    'timestamp': datetime.now().isoformat()
+                })
+                
                 # Verarbeite PDF mit process_single_pdf aus main.py
                 from main import process_single_pdf
                 
@@ -1230,13 +1244,28 @@ def manual_scan():
                 if success:
                     success_count += 1
                     logger.info(f"✓ Verarbeitet: {pdf_file.name}")
+                    processing_queue.put({
+                        'type': 'success',
+                        'message': f'✓ Erfolgreich: {pdf_file.name}',
+                        'timestamp': datetime.now().isoformat()
+                    })
                 else:
                     error_count += 1
                     logger.error(f"✗ Fehler bei {pdf_file.name}")
+                    processing_queue.put({
+                        'type': 'error',
+                        'message': f'✗ Fehler: {pdf_file.name}',
+                        'timestamp': datetime.now().isoformat()
+                    })
 
             except Exception as e:
                 error_count += 1
                 logger.error(f"✗ Exception beim Verarbeiten von {pdf_file.name}: {e}")
+                processing_queue.put({
+                    'type': 'error',
+                    'message': f'✗ Exception: {pdf_file.name} - {str(e)}',
+                    'timestamp': datetime.now().isoformat()
+                })
 
         logger.info(f"Manueller Scan abgeschlossen: {success_count} erfolgreich, {error_count} Fehler")
 
@@ -1772,12 +1801,24 @@ def import_folders():
         if not folder_names:
             return jsonify({'success': False, 'error': 'Keine Ordner angegeben'}), 400
         
+        # Log Start
+        processing_queue.put({
+            'type': 'info',
+            'message': f'Starte Ordner-Import: {len(folder_names)} Ordner',
+            'timestamp': datetime.now().isoformat()
+        })
+        
         results = []
         
         for folder_name in folder_names:
             folder_path = input_folder / folder_name
             
             if not folder_path.exists() or not folder_path.is_dir():
+                processing_queue.put({
+                    'type': 'error',
+                    'message': f'✗ Ordner nicht gefunden: {folder_name}',
+                    'timestamp': datetime.now().isoformat()
+                })
                 results.append({
                     'folder': folder_name,
                     'success': False,
@@ -1787,17 +1828,32 @@ def import_folders():
             
             try:
                 logger.info(f"Importiere Ordner: {folder_name}")
+                processing_queue.put({
+                    'type': 'info',
+                    'message': f'Importiere Ordner: {folder_name}',
+                    'timestamp': datetime.now().isoformat()
+                })
                 
                 # Nutze folder_import.process_folder_for_import
                 success = folder_import.process_folder_for_import(folder_path, c)
                 
                 if success:
+                    processing_queue.put({
+                        'type': 'success',
+                        'message': f'✓ Erfolgreich importiert: {folder_name}',
+                        'timestamp': datetime.now().isoformat()
+                    })
                     results.append({
                         'folder': folder_name,
                         'success': True,
                         'message': 'Erfolgreich importiert und archiviert'
                     })
                 else:
+                    processing_queue.put({
+                        'type': 'error',
+                        'message': f'✗ Import fehlgeschlagen: {folder_name}',
+                        'timestamp': datetime.now().isoformat()
+                    })
                     results.append({
                         'folder': folder_name,
                         'success': False,
@@ -1806,6 +1862,11 @@ def import_folders():
                     
             except Exception as e:
                 logger.error(f"Fehler beim Import von {folder_name}: {e}", exc_info=True)
+                processing_queue.put({
+                    'type': 'error',
+                    'message': f'✗ Exception: {folder_name} - {str(e)}',
+                    'timestamp': datetime.now().isoformat()
+                })
                 results.append({
                     'folder': folder_name,
                     'success': False,
