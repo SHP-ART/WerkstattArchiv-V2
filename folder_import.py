@@ -227,11 +227,13 @@ def process_folder_for_import(
             logger.info(f"\n📄 Verarbeite Hauptauftrag: {main_pdf.name}")
             
             # OCR auf erster PDF
+            logger.info(f"⏳ Starte OCR für {main_pdf.name}...")
             main_texts = pdf_to_ocr_texts(main_pdf, max_pages=10)
-            logger.info(f"✓ OCR: {len(main_texts)} Seiten erkannt")
+            logger.info(f"✓ OCR abgeschlossen: {len(main_texts)} Seiten erkannt")
             
             # Metadaten aus erster Seite extrahieren
             # Nutze Ordnernamen als Fallback für Auftragsnummer
+            logger.info(f"🔍 Extrahiere Metadaten aus Seite 1...")
             try:
                 metadata = extract_auftrag_metadata(
                     main_texts[0] if main_texts else "",
@@ -274,31 +276,44 @@ def process_folder_for_import(
             
             # Auftragsnummer überschreiben (Ordnername hat immer Priorität)
             metadata["auftrag_nr"] = auftrag_nr
-            logger.info(f"✓ Metadaten: Kunde={metadata.get('name', 'N/A')}, "
-                       f"KZ={metadata.get('kennzeichen', 'N/A')}")
+            logger.info(f"✓ Metadaten extrahiert:")
+            logger.info(f"   • Auftragsnr: {auftrag_nr}")
+            logger.info(f"   • Kunde: {metadata.get('name', 'N/A')}")
+            logger.info(f"   • Kennzeichen: {metadata.get('kennzeichen', 'N/A')}")
+            logger.info(f"   • Datum: {metadata.get('datum', 'N/A')}")
             
             # Schlagwörter aus allen Seiten der ersten PDF
+            logger.info(f"🔍 Suche Schlagwörter in {len(main_texts)} Seiten...")
             keywords = extract_keywords_from_pages(
                 main_texts,
                 config.get_keywords()
             )
-            logger.info(f"✓ Schlagwörter (Haupt-PDF): {len(keywords)} gefunden")
+            if keywords:
+                logger.info(f"✓ Schlagwörter gefunden: {', '.join(keywords.keys())}")
+            else:
+                logger.info(f"ℹ️  Keine Schlagwörter gefunden")
         
             # 4. Weitere PDFs verarbeiten (nur Schlagwörter)
             if len(pdf_paths) > 1:
-                logger.info(f"\n📑 Verarbeite {len(pdf_paths) - 1} weitere PDF(s)...")
+                logger.info(f"\n📑 Verarbeite {len(pdf_paths) - 1} weitere PDF(s) (Anhänge)...")
                 
                 for i, additional_pdf in enumerate(pdf_paths[1:], 2):
-                    logger.info(f"  [{i}] {additional_pdf.name}")
+                    logger.info(f"  [{i}/{len(pdf_paths)}] {additional_pdf.name}")
+                    logger.info(f"      ⏳ OCR läuft...")
                     
                     # OCR auf weiterer PDF
                     additional_texts = pdf_to_ocr_texts(additional_pdf, max_pages=10)
+                    logger.info(f"      ✓ {len(additional_texts)} Seiten erkannt")
                     
                     # Schlagwörter extrahieren
                     additional_keywords = extract_keywords_from_pages(
                         additional_texts,
                         config.get_keywords()
                     )
+                    if additional_keywords:
+                        logger.info(f"      ✓ Schlagwörter: {', '.join(additional_keywords.keys())}")
+                    else:
+                        logger.info(f"      ℹ️  Keine Schlagwörter")
                     
                     # Schlagwörter zusammenführen (Seitenzahlen anpassen)
                     offset = sum(len(pdf_to_ocr_texts(p, max_pages=10)) 
@@ -341,7 +356,8 @@ def process_folder_for_import(
             logger.info(f"✓ Verwende erste PDF: {final_pdf.name}")
         
         # 6. Ins Archiv verschieben
-        logger.info(f"\n📦 Verschiebe ins Archiv...")
+        logger.info(f"\n📦 Archivierung...")
+        logger.info(f"   ⏳ Berechne Ziel-Ordner und Dateiname...")
         
         # Config-Dict vorbereiten
         archive_config = {
@@ -351,6 +367,7 @@ def process_folder_for_import(
             "dateiname_pattern": config.config.get("dateiname_pattern", "{auftrag_nr}_Auftrag{version_suffix}.pdf")
         }
         
+        logger.info(f"   ⏳ Verschiebe PDF ins Archiv...")
         archive_path, file_hash = move_to_archive(
             final_pdf,
             config.get_archiv_root(),
@@ -358,10 +375,12 @@ def process_folder_for_import(
             archive_config,
             metadata
         )
-        logger.info(f"✓ Archiviert: {archive_path}")
+        logger.info(f"   ✓ Archiviert als: {archive_path.name}")
+        logger.info(f"   ✓ Ordner: {archive_path.parent}")
         
         # 7. In Datenbank eintragen
-        logger.info(f"\n💾 Speichere in Datenbank...")
+        logger.info(f"\n💾 Datenbank-Eintrag...")
+        logger.info(f"   ⏳ Erstelle Auftrag in Datenbank...")
         
         auftrag_id = insert_auftrag(
             config.get_db_path(),
@@ -370,7 +389,7 @@ def process_folder_for_import(
             archive_path,
             file_hash
         )
-        logger.info(f"✓ Datenbank-ID: {auftrag_id}")
+        logger.info(f"   ✓ Gespeichert mit ID: {auftrag_id}")
         
         # 8. Aufräumen: Ordner löschen (PDFs wurden archiviert)
         if merge_pdfs_flag and len(pdf_paths) > 1:
