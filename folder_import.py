@@ -115,14 +115,50 @@ def merge_pdfs(pdf_paths: List[Path], output_path: Path) -> None:
         raise FolderImportError(f"Fehler beim Mergen der PDFs: {e}")
 
 
-def split_pdf_first_page(pdf_path: Path, output_dir: Path, auftrag_nr: str) -> Tuple[Path, Path]:
+def find_auftrag_page(texts: List[str]) -> Optional[int]:
     """
-    Splittet eine PDF: Seite 1 = Auftrag, ALLE Seiten = Daten.
+    Findet die Seite mit dem Werkstattauftrag (enthält Metadaten).
+    
+    Args:
+        texts: Liste von OCR-Texten (ein Text pro Seite)
+    
+    Returns:
+        Seitennummer (0-basiert) oder None wenn nicht gefunden
+    """
+    # Suche nach typischen Auftrag-Merkmalen
+    auftrag_patterns = [
+        r'Werkstattauftrag',
+        r'Auftrag\s*Nr',
+        r'Auftragsnummer',
+        r'Kd\.?\s*Nr',
+        r'Kundennummer',
+        r'Kennzeichen.*:',
+        r'Fahrzeug.*Kennzeichen'
+    ]
+    
+    for i, text in enumerate(texts):
+        # Zähle wie viele Patterns matchen
+        matches = sum(1 for pattern in auftrag_patterns if re.search(pattern, text, re.IGNORECASE))
+        
+        # Wenn mindestens 3 Patterns matchen, ist es wahrscheinlich der Auftrag
+        if matches >= 3:
+            logger.debug(f"Auftrag erkannt auf Seite {i+1} ({matches}/{len(auftrag_patterns)} Patterns)")
+            return i
+    
+    # Fallback: Erste Seite
+    logger.warning("Konnte Auftrag nicht eindeutig identifizieren, verwende Seite 1")
+    return 0
+
+
+def split_pdf_extract_auftrag(pdf_path: Path, output_dir: Path, auftrag_nr: str, auftrag_page_index: int = 0) -> Tuple[Path, Path]:
+    """
+    Splittet eine PDF: Auftragsseite = Auftrag, ALLE Seiten = Daten.
     
     Args:
         pdf_path: Pfad zur Original-PDF
         output_dir: Ausgabe-Verzeichnis für gesplittete PDFs
         auftrag_nr: Auftragsnummer für Dateinamen
+        auftrag_page_index: Index der Auftragsseite (0-basiert)
     
     Returns:
         Tuple: (Auftrag-PDF-Pfad, Daten-PDF-Pfad mit ALLEN Seiten)
@@ -136,22 +172,23 @@ def split_pdf_first_page(pdf_path: Path, output_dir: Path, auftrag_nr: str) -> T
         total_pages = len(reader.pages)
         
         logger.info(f"   ℹ️  Gesamt: {total_pages} Seiten")
+        logger.info(f"   ℹ️  Auftrag auf Seite: {auftrag_page_index + 1}")
         
-        # Auftrag-PDF (nur Seite 1)
+        # Auftrag-PDF (nur Auftragsseite)
         auftrag_path = output_dir / f"{auftrag_nr}_Auftrag.pdf"
         writer_auftrag = PdfWriter()
-        writer_auftrag.add_page(reader.pages[0])
+        writer_auftrag.add_page(reader.pages[auftrag_page_index])
         
         with open(auftrag_path, 'wb') as f:
             writer_auftrag.write(f)
         
-        logger.info(f"   ✓ Auftrag: {auftrag_path.name} (Seite 1)")
+        logger.info(f"   ✓ Auftrag: {auftrag_path.name} (Seite {auftrag_page_index + 1})")
         
         # Daten-PDF (ALLE Seiten 1-N)
         daten_path = output_dir / f"{auftrag_nr}_Daten.pdf"
         writer_daten = PdfWriter()
         
-        for page_num in range(0, total_pages):  # 0-basiert = alle Seiten inkl. Seite 1
+        for page_num in range(0, total_pages):  # 0-basiert = alle Seiten
             writer_daten.add_page(reader.pages[page_num])
         
         with open(daten_path, 'wb') as f:
@@ -230,6 +267,7 @@ def process_folder_for_import(
         keywords = {}
         auftrag_pdf = None
         daten_pdf = None
+        auftrag_page_index = 0  # Default: Seite 1
         
         if ohne_auftrag:
             # OHNE AUFTRAG: Alle PDFs → Eine Anhang-PDF (keine Auftrag-PDF)
@@ -276,12 +314,21 @@ def process_folder_for_import(
             # OCR auf erster PDF (alle Seiten)
             logger.info(f"⏳ Starte OCR für {main_pdf.name}...")
             main_texts = pdf_to_ocr_texts(main_pdf, max_pages=None)
-            logger.info(f"✓ OCR abgeschlossen: {len(main_texts)} Seiten erkannt")            # Metadaten aus erster Seite extrahieren
+            logger.info(f"✓ OCR abgeschlossen: {len(main_texts)} Seiten erkannt")
+            
+            # Finde die Seite mit dem Auftrag
+            logger.info(f"🔍 Suche Auftragsseite...")
+            auftrag_page_index = find_auftrag_page(main_texts)
+            if auftrag_page_index is None:
+                auftrag_page_index = 0  # Fallback: Seite 1
+            logger.info(f"✓ Auftrag gefunden auf Seite {auftrag_page_index + 1}")
+            
+            # Metadaten aus Auftragsseite extrahieren
             # Nutze Ordnernamen als Fallback für Auftragsnummer
-            logger.info(f"🔍 Extrahiere Metadaten aus Seite 1...")
+            logger.info(f"🔍 Extrahiere Metadaten aus Seite {auftrag_page_index + 1}...")
             try:
                 metadata = extract_auftrag_metadata(
-                    main_texts[0] if main_texts else "",
+                    main_texts[auftrag_page_index] if main_texts else "",
                     fallback_filename=folder_path.name  # Ordnername als Fallback
                 )
                 
@@ -392,7 +439,7 @@ def process_folder_for_import(
         else:
             # MIT AUFTRAG: Split erste PDF in Auftrag + Daten (Daten enthält ALLE Seiten)
             main_pdf = pdf_paths[0]
-            auftrag_pdf, daten_pdf = split_pdf_first_page(main_pdf, temp_dir, auftrag_nr)
+            auftrag_pdf, daten_pdf = split_pdf_extract_auftrag(main_pdf, temp_dir, auftrag_nr, auftrag_page_index)
             
             # Falls weitere PDFs vorhanden, an Daten-PDF anhängen
             if len(pdf_paths) > 1:
