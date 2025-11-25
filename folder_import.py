@@ -17,7 +17,7 @@ from datetime import datetime
 
 # PDF-Manipulation
 try:
-    from PyPDF2 import PdfMerger, PdfReader
+    from PyPDF2 import PdfMerger, PdfReader, PdfWriter
 except ImportError:
     print("❌ PyPDF2 nicht installiert. Führe aus: pip install PyPDF2")
     exit(1)
@@ -115,6 +115,60 @@ def merge_pdfs(pdf_paths: List[Path], output_path: Path) -> None:
         raise FolderImportError(f"Fehler beim Mergen der PDFs: {e}")
 
 
+def split_pdf_first_page(pdf_path: Path, output_dir: Path, auftrag_nr: str) -> Tuple[Path, Optional[Path]]:
+    """
+    Splittet eine PDF: Seite 1 = Auftrag, Rest = Daten.
+    
+    Args:
+        pdf_path: Pfad zur Original-PDF
+        output_dir: Ausgabe-Verzeichnis für gesplittete PDFs
+        auftrag_nr: Auftragsnummer für Dateinamen
+    
+    Returns:
+        Tuple: (Auftrag-PDF-Pfad, Daten-PDF-Pfad oder None wenn nur 1 Seite)
+    
+    Raises:
+        FolderImportError: Bei Fehlern beim Splitten
+    """
+    try:
+        logger.info(f"📄 Splitte PDF: {pdf_path.name}")
+        reader = PdfReader(str(pdf_path))
+        total_pages = len(reader.pages)
+        
+        logger.info(f"   ℹ️  Gesamt: {total_pages} Seiten")
+        
+        # Auftrag-PDF (nur Seite 1)
+        auftrag_path = output_dir / f"{auftrag_nr}_Auftrag.pdf"
+        writer_auftrag = PdfWriter()
+        writer_auftrag.add_page(reader.pages[0])
+        
+        with open(auftrag_path, 'wb') as f:
+            writer_auftrag.write(f)
+        
+        logger.info(f"   ✓ Auftrag: {auftrag_path.name} (Seite 1)")
+        
+        # Daten-PDF (Seiten 2-N)
+        daten_path = None
+        if total_pages > 1:
+            daten_path = output_dir / f"{auftrag_nr}_Daten.pdf"
+            writer_daten = PdfWriter()
+            
+            for page_num in range(1, total_pages):
+                writer_daten.add_page(reader.pages[page_num])
+            
+            with open(daten_path, 'wb') as f:
+                writer_daten.write(f)
+            
+            logger.info(f"   ✓ Daten: {daten_path.name} (Seiten 2-{total_pages})")
+        else:
+            logger.info(f"   ℹ️  Nur 1 Seite - keine Daten-PDF erstellt")
+        
+        return auftrag_path, daten_path
+        
+    except Exception as e:
+        raise FolderImportError(f"Fehler beim Splitten von {pdf_path.name}: {e}")
+
+
 def process_folder_for_import(
     folder_path: Path,
     config: Config,
@@ -172,9 +226,6 @@ def process_folder_for_import(
         for i, pdf in enumerate(pdf_paths, 1):
             logger.info(f"  [{i}] {pdf.name}")
         
-        # Import pdf_split
-        from pdf_split import split_pdf_auftrag_anhang, combine_pdfs_to_anhang, PDFSplitError
-        
         # Temp-Verzeichnis für Splitting
         temp_dir = folder_path / ".temp_split"
         temp_dir.mkdir(exist_ok=True)
@@ -182,7 +233,7 @@ def process_folder_for_import(
         # 3. PDFs verarbeiten (abhängig von ohne_auftrag)
         keywords = {}
         auftrag_pdf = None
-        anhang_pdf = None
+        daten_pdf = None
         
         if ohne_auftrag:
             # OHNE AUFTRAG: Alle PDFs → Eine Anhang-PDF (keine Auftrag-PDF)
@@ -331,31 +382,50 @@ def process_folder_for_import(
         for kw, pages in sorted(keywords.items()):
             logger.info(f"  - {kw}: Seiten {pages}")
         
-        # 5. PDFs zusammenfügen (optional)
-        if merge_pdfs_flag and len(pdf_paths) > 1:
-            logger.info(f"\n🔗 Füge {len(pdf_paths)} PDFs zusammen...")
-            
-            # Dateiname abhängig von ohne_auftrag
-            if ohne_auftrag:
-                merged_name = f"{auftrag_nr}_OA.pdf"
-            else:
-                merged_name = f"{auftrag_nr}_Komplett.pdf"
-            
-            merged_path = folder_path / merged_name
-            
-            merge_pdfs(pdf_paths, merged_path)
-            
-            # Gemergtes PDF wird verwendet
-            final_pdf = merged_path
-            logger.info(f"✓ Verwende gemergtes PDF: {merged_name}")
-        else:
-            # Nur erste PDF verwenden
-            final_pdf = pdf_paths[0]
-            logger.info(f"✓ Verwende erste PDF: {final_pdf.name}")
+        # 5. PDF Splitting: Seite 1 = Auftrag, Rest = Daten
+        logger.info(f"\n✂️  PDF-Splitting...")
         
-        # 6. Ins Archiv verschieben
+        if ohne_auftrag:
+            # OHNE AUFTRAG: Alle PDFs zu einer Anhang-PDF
+            logger.info(f"Modus: OHNE AUFTRAG - erstelle nur Anhang-PDF")
+            anhang_name = f"{auftrag_nr}_OA.pdf"
+            anhang_path = temp_dir / anhang_name
+            merge_pdfs(pdf_paths, anhang_path)
+            auftrag_pdf = anhang_path  # Wird als "final_pdf" für Archivierung genutzt
+            daten_pdf = None
+        else:
+            # MIT AUFTRAG: Split erste PDF in Auftrag + Daten
+            main_pdf = pdf_paths[0]
+            auftrag_pdf, daten_pdf = split_pdf_first_page(main_pdf, temp_dir, auftrag_nr)
+            
+            # Falls weitere PDFs vorhanden, an Daten-PDF anhängen
+            if len(pdf_paths) > 1:
+                logger.info(f"\n📎 Füge {len(pdf_paths) - 1} weitere PDF(s) zu Daten-PDF hinzu...")
+                
+                # Liste für Merge: [Daten-PDF, weitere PDFs...]
+                pdfs_to_merge = []
+                if daten_pdf:
+                    pdfs_to_merge.append(daten_pdf)
+                pdfs_to_merge.extend(pdf_paths[1:])
+                
+                # Neue kombinierte Daten-PDF
+                combined_daten = temp_dir / f"{auftrag_nr}_Daten_komplett.pdf"
+                merge_pdfs(pdfs_to_merge, combined_daten)
+                
+                # Alte Daten-PDF löschen, neue verwenden
+                if daten_pdf and daten_pdf.exists():
+                    daten_pdf.unlink()
+                daten_pdf = combined_daten
+                
+                logger.info(f"   ✓ Kombinierte Daten-PDF: {daten_pdf.name}")
+        
+        logger.info(f"✓ Auftrag-PDF: {auftrag_pdf.name}")
+        if daten_pdf:
+            logger.info(f"✓ Daten-PDF: {daten_pdf.name}")
+        
+        # 6. Ins Archiv verschieben (BEIDE PDFs)
         logger.info(f"\n📦 Archivierung...")
-        logger.info(f"   ⏳ Berechne Ziel-Ordner und Dateiname...")
+        logger.info(f"   ⏳ Berechne Ziel-Ordner...")
         
         # Config-Dict vorbereiten
         archive_config = {
@@ -365,16 +435,36 @@ def process_folder_for_import(
             "dateiname_pattern": config.config.get("dateiname_pattern", "{auftrag_nr}_Auftrag{version_suffix}.pdf")
         }
         
-        logger.info(f"   ⏳ Verschiebe PDF ins Archiv...")
-        archive_path, file_hash = move_to_archive(
-            final_pdf,
+        # Auftrag-PDF archivieren
+        logger.info(f"   ⏳ Verschiebe Auftrag-PDF ins Archiv...")
+        archive_path_auftrag, file_hash_auftrag = move_to_archive(
+            auftrag_pdf,
             config.get_archiv_root(),
             auftrag_nr,
             archive_config,
             metadata
         )
-        logger.info(f"   ✓ Archiviert als: {archive_path.name}")
-        logger.info(f"   ✓ Ordner: {archive_path.parent}")
+        logger.info(f"   ✓ Auftrag archiviert: {archive_path_auftrag.name}")
+        
+        # Daten-PDF archivieren (falls vorhanden)
+        archive_path_daten = None
+        if daten_pdf:
+            logger.info(f"   ⏳ Verschiebe Daten-PDF ins Archiv...")
+            
+            # Temporär Dateiname-Pattern für Daten-PDF anpassen
+            archive_config_daten = archive_config.copy()
+            archive_config_daten["dateiname_pattern"] = "{auftrag_nr}_Daten{version_suffix}.pdf"
+            
+            archive_path_daten, _ = move_to_archive(
+                daten_pdf,
+                config.get_archiv_root(),
+                auftrag_nr,
+                archive_config_daten,
+                metadata
+            )
+            logger.info(f"   ✓ Daten archiviert: {archive_path_daten.name}")
+        
+        logger.info(f"   ✓ Ordner: {archive_path_auftrag.parent}")
         
         # 7. In Datenbank eintragen
         logger.info(f"\n💾 Datenbank-Eintrag...")
@@ -384,20 +474,24 @@ def process_folder_for_import(
             config.get_db_path(),
             metadata,
             keywords,
-            archive_path,
-            file_hash
+            archive_path_auftrag,
+            file_hash_auftrag
         )
         logger.info(f"   ✓ Gespeichert mit ID: {auftrag_id}")
         
-        # 8. Aufräumen: Ordner löschen (PDFs wurden archiviert)
-        if merge_pdfs_flag and len(pdf_paths) > 1:
-            # Gemergtes PDF wurde verschoben, Originale löschen
-            logger.info(f"\n🧹 Räume auf...")
-            try:
-                shutil.rmtree(folder_path)
-                logger.info(f"✓ Ordner gelöscht: {folder_path.name}")
-            except Exception as e:
-                logger.warning(f"⚠️  Konnte Ordner nicht löschen: {e}")
+        # 8. Aufräumen: Temp-Ordner und Original-Ordner löschen
+        logger.info(f"\n🧹 Räume auf...")
+        try:
+            # Temp-Verzeichnis löschen
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir)
+                logger.debug(f"   ✓ Temp-Ordner gelöscht")
+            
+            # Original-Ordner löschen
+            shutil.rmtree(folder_path)
+            logger.info(f"✓ Ordner gelöscht: {folder_path.name}")
+        except Exception as e:
+            logger.warning(f"⚠️  Konnte Ordner nicht löschen: {e}")
         
         # Ergebnis
         result = {
@@ -405,9 +499,10 @@ def process_folder_for_import(
             "auftrag_nr": auftrag_nr,
             "auftrag_id": auftrag_id,
             "pdf_count": len(pdf_paths),
-            "merged": merge_pdfs_flag and len(pdf_paths) > 1,
+            "split": not ohne_auftrag,
             "ohne_auftrag": ohne_auftrag,
-            "archive_path": str(archive_path),
+            "archive_path_auftrag": str(archive_path_auftrag),
+            "archive_path_daten": str(archive_path_daten) if archive_path_daten else None,
             "keywords": list(keywords.keys()),
             "metadata": metadata
         }
