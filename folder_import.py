@@ -237,6 +237,26 @@ def process_folder_for_import(
                     main_texts[0] if main_texts else "",
                     fallback_filename=folder_path.name  # Ordnername als Fallback
                 )
+                
+                # VALIDIERUNG: Vergleiche OCR-Auftragsnummer mit Ordnername
+                ocr_auftrag_nr = metadata.get("auftrag_nr")
+                if ocr_auftrag_nr:
+                    # Normalisiere beide für Vergleich (entferne führende Nullen)
+                    ocr_normalized = str(int(ocr_auftrag_nr))
+                    folder_normalized = str(int(auftrag_nr))
+                    
+                    if ocr_normalized != folder_normalized:
+                        logger.warning(f"⚠️  Auftragsnummer-Konflikt erkannt!")
+                        logger.warning(f"   Ordnername: {auftrag_nr}")
+                        logger.warning(f"   Im PDF gefunden: {ocr_auftrag_nr}")
+                        logger.warning(f"   Formular-Typ: {metadata.get('formular_version', 'unbekannt')}")
+                        logger.warning(f"   → Verwende Ordnername als korrekte Auftragsnummer")
+                    else:
+                        logger.info(f"✓ Auftragsnummer validiert: {auftrag_nr} (stimmt mit PDF überein)")
+                        logger.info(f"  Formular-Typ: {metadata.get('formular_version', 'unbekannt')}")
+                else:
+                    logger.info(f"ℹ️  Auftragsnummer nur aus Ordnername: {auftrag_nr} (nicht im PDF gefunden)")
+                    
             except Exception as e:
                 # Wenn Metadaten-Extraktion fehlschlägt, nutze Basis-Metadaten
                 logger.warning(f"Metadaten-Extraktion fehlgeschlagen: {e}")
