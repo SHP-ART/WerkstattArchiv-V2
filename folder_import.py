@@ -115,9 +115,9 @@ def merge_pdfs(pdf_paths: List[Path], output_path: Path) -> None:
         raise FolderImportError(f"Fehler beim Mergen der PDFs: {e}")
 
 
-def split_pdf_first_page(pdf_path: Path, output_dir: Path, auftrag_nr: str) -> Tuple[Path, Optional[Path]]:
+def split_pdf_first_page(pdf_path: Path, output_dir: Path, auftrag_nr: str) -> Tuple[Path, Path]:
     """
-    Splittet eine PDF: Seite 1 = Auftrag, Rest = Daten.
+    Splittet eine PDF: Seite 1 = Auftrag, ALLE Seiten = Daten.
     
     Args:
         pdf_path: Pfad zur Original-PDF
@@ -125,7 +125,7 @@ def split_pdf_first_page(pdf_path: Path, output_dir: Path, auftrag_nr: str) -> T
         auftrag_nr: Auftragsnummer für Dateinamen
     
     Returns:
-        Tuple: (Auftrag-PDF-Pfad, Daten-PDF-Pfad oder None wenn nur 1 Seite)
+        Tuple: (Auftrag-PDF-Pfad, Daten-PDF-Pfad mit ALLEN Seiten)
     
     Raises:
         FolderImportError: Bei Fehlern beim Splitten
@@ -147,21 +147,17 @@ def split_pdf_first_page(pdf_path: Path, output_dir: Path, auftrag_nr: str) -> T
         
         logger.info(f"   ✓ Auftrag: {auftrag_path.name} (Seite 1)")
         
-        # Daten-PDF (Seiten 2-N)
-        daten_path = None
-        if total_pages > 1:
-            daten_path = output_dir / f"{auftrag_nr}_Daten.pdf"
-            writer_daten = PdfWriter()
-            
-            for page_num in range(1, total_pages):
-                writer_daten.add_page(reader.pages[page_num])
-            
-            with open(daten_path, 'wb') as f:
-                writer_daten.write(f)
-            
-            logger.info(f"   ✓ Daten: {daten_path.name} (Seiten 2-{total_pages})")
-        else:
-            logger.info(f"   ℹ️  Nur 1 Seite - keine Daten-PDF erstellt")
+        # Daten-PDF (ALLE Seiten 1-N)
+        daten_path = output_dir / f"{auftrag_nr}_Daten.pdf"
+        writer_daten = PdfWriter()
+        
+        for page_num in range(0, total_pages):  # 0-basiert = alle Seiten inkl. Seite 1
+            writer_daten.add_page(reader.pages[page_num])
+        
+        with open(daten_path, 'wb') as f:
+            writer_daten.write(f)
+        
+        logger.info(f"   ✓ Daten: {daten_path.name} (ALLE Seiten 1-{total_pages})")
         
         return auftrag_path, daten_path
         
@@ -394,7 +390,7 @@ def process_folder_for_import(
             auftrag_pdf = anhang_path  # Wird als "final_pdf" für Archivierung genutzt
             daten_pdf = None
         else:
-            # MIT AUFTRAG: Split erste PDF in Auftrag + Daten
+            # MIT AUFTRAG: Split erste PDF in Auftrag + Daten (Daten enthält ALLE Seiten)
             main_pdf = pdf_paths[0]
             auftrag_pdf, daten_pdf = split_pdf_first_page(main_pdf, temp_dir, auftrag_nr)
             
@@ -402,18 +398,15 @@ def process_folder_for_import(
             if len(pdf_paths) > 1:
                 logger.info(f"\n📎 Füge {len(pdf_paths) - 1} weitere PDF(s) zu Daten-PDF hinzu...")
                 
-                # Liste für Merge: [Daten-PDF, weitere PDFs...]
-                pdfs_to_merge = []
-                if daten_pdf:
-                    pdfs_to_merge.append(daten_pdf)
-                pdfs_to_merge.extend(pdf_paths[1:])
+                # Liste für Merge: [Daten-PDF (enthält bereits alle Seiten der ersten PDF), weitere PDFs...]
+                pdfs_to_merge = [daten_pdf] + pdf_paths[1:]
                 
                 # Neue kombinierte Daten-PDF
                 combined_daten = temp_dir / f"{auftrag_nr}_Daten_komplett.pdf"
                 merge_pdfs(pdfs_to_merge, combined_daten)
                 
                 # Alte Daten-PDF löschen, neue verwenden
-                if daten_pdf and daten_pdf.exists():
+                if daten_pdf.exists():
                     daten_pdf.unlink()
                 daten_pdf = combined_daten
                 
