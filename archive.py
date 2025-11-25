@@ -21,20 +21,26 @@ class ArchiveError(Exception):
 
 def format_auftrag_nr(raw_nr: str, pad_length: int = 6) -> str:
     """
-    Formatiert die Auftragsnummer mit führenden Nullen.
+    Formatiert die Auftragsnummer mit intelligenter Padding-Logik.
+    
+    Zwei Nummernsysteme:
+    - Alte Formulare (ohne Kd.Nr.): 5-stellig (10000-99999), keine führende Null
+    - Neue Formulare (mit Kd.Nr.): Ab 1, mit Nullen auf 6 Stellen aufgefüllt
     
     Args:
-        raw_nr: Rohe Auftragsnummer (z.B. "303", "76329")
-        pad_length: Länge der gepaddeten Nummer (Standard: 6)
+        raw_nr: Rohe Auftragsnummer (z.B. "303", "75238")
+        pad_length: Maximale Länge der Nummer (Standard: 6)
     
     Returns:
-        Gepaddete Auftragsnummer (z.B. "000303", "076329")
+        Formatierte Auftragsnummer
     
     Example:
-        >>> format_auftrag_nr("303", 6)
+        >>> format_auftrag_nr("303")      # Neu: 000303 (auf 6 Stellen)
         '000303'
-        >>> format_auftrag_nr("76329", 6)
-        '076329'
+        >>> format_auftrag_nr("75238")    # Alt: 75238 (5-stellig, keine führende Null)
+        '75238'
+        >>> format_auftrag_nr("1")        # Neu: 000001 (auf 6 Stellen)
+        '000001'
     """
     # Nur Ziffern behalten
     digits = ''.join(c for c in raw_nr if c.isdigit())
@@ -42,8 +48,18 @@ def format_auftrag_nr(raw_nr: str, pad_length: int = 6) -> str:
     if not digits:
         raise ArchiveError(f"Keine gültigen Ziffern in Auftragsnummer: {raw_nr}")
     
-    # Mit führenden Nullen auffüllen
-    padded = digits.zfill(pad_length)
+    # In Zahl umwandeln
+    nummer = int(digits)
+    
+    # Intelligente Padding-Logik:
+    # - Wenn >= 10000: Alte 5-stellige Nummer (z.B. 75238)
+    # - Wenn < 10000: Neue Nummer ab 1, auf 6 Stellen padden (z.B. 000303)
+    if nummer >= 10000:
+        # Alte 5-stellige Nummern: Keine führende Null
+        padded = str(nummer)
+    else:
+        # Neue Nummern: Auf 6 Stellen padden
+        padded = str(nummer).zfill(pad_length)
     
     logger.debug(f"Auftragsnummer formatiert: {raw_nr} -> {padded}")
     return padded
