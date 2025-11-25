@@ -70,10 +70,10 @@ def reprocess_auftrag(auftrag_nr: str, c: config.Config) -> bool:
         print(f"❌ Fehler: Datei nicht gefunden: {old_file_path}")
         return False
     
-    # OCR neu durchführen
+    # OCR neu durchführen (alle Seiten)
     print(f"\n🔍 OCR-Erkennung läuft...")
     try:
-        texts = ocr.pdf_to_ocr_texts(old_file_path, max_pages=c.config.get('max_pages_to_ocr', 10))
+        texts = ocr.pdf_to_ocr_texts(old_file_path, max_pages=None)
         print(f"   ✓ {len(texts)} Seite(n) erfolgreich verarbeitet")
     except Exception as e:
         print(f"❌ OCR-Fehler: {e}")

@@ -203,8 +203,8 @@ def process_folder_for_import(
             for i, pdf_path in enumerate(pdf_paths, 1):
                 logger.info(f"  [{i}] {pdf_path.name}")
                 
-                # OCR
-                texts = pdf_to_ocr_texts(pdf_path, max_pages=10)
+                # OCR (alle Seiten)
+                texts = pdf_to_ocr_texts(pdf_path, max_pages=None)
                 
                 # Schlagwörter extrahieren
                 pdf_keywords = extract_keywords_from_pages(texts, config.get_keywords())
@@ -226,12 +226,10 @@ def process_folder_for_import(
             main_pdf = pdf_paths[0]
             logger.info(f"\n📄 Verarbeite Hauptauftrag: {main_pdf.name}")
             
-            # OCR auf erster PDF
+            # OCR auf erster PDF (alle Seiten)
             logger.info(f"⏳ Starte OCR für {main_pdf.name}...")
-            main_texts = pdf_to_ocr_texts(main_pdf, max_pages=10)
-            logger.info(f"✓ OCR abgeschlossen: {len(main_texts)} Seiten erkannt")
-            
-            # Metadaten aus erster Seite extrahieren
+            main_texts = pdf_to_ocr_texts(main_pdf, max_pages=None)
+            logger.info(f"✓ OCR abgeschlossen: {len(main_texts)} Seiten erkannt")            # Metadaten aus erster Seite extrahieren
             # Nutze Ordnernamen als Fallback für Auftragsnummer
             logger.info(f"🔍 Extrahiere Metadaten aus Seite 1...")
             try:
@@ -301,8 +299,8 @@ def process_folder_for_import(
                     logger.info(f"  [{i}/{len(pdf_paths)}] {additional_pdf.name}")
                     logger.info(f"      ⏳ OCR läuft...")
                     
-                    # OCR auf weiterer PDF
-                    additional_texts = pdf_to_ocr_texts(additional_pdf, max_pages=10)
+                    # OCR auf weiterer PDF (alle Seiten)
+                    additional_texts = pdf_to_ocr_texts(additional_pdf, max_pages=None)
                     logger.info(f"      ✓ {len(additional_texts)} Seiten erkannt")
                     
                     # Schlagwörter extrahieren
@@ -316,7 +314,7 @@ def process_folder_for_import(
                         logger.info(f"      ℹ️  Keine Schlagwörter")
                     
                     # Schlagwörter zusammenführen (Seitenzahlen anpassen)
-                    offset = sum(len(pdf_to_ocr_texts(p, max_pages=10)) 
+                    offset = sum(len(pdf_to_ocr_texts(p, max_pages=None)) 
                                for p in pdf_paths[:i-1])
                     
                     for keyword, pages in additional_keywords.items():

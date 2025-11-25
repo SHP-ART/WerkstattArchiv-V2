@@ -67,12 +67,11 @@ def process_single_pdf(pdf_path: Path, cfg: config.Config) -> bool:
     logger.info(f"=" * 60)
     
     try:
-        # 1. OCR durchführen
-        max_pages = cfg.get("max_pages_to_ocr", 10)
+        # 1. OCR durchführen (alle Seiten)
         lang = cfg.get("tesseract_lang", "deu")
         
         logger.info("Schritt 1/7: OCR-Verarbeitung...")
-        page_texts = ocr.pdf_to_ocr_texts(pdf_path, max_pages=max_pages, lang=lang)
+        page_texts = ocr.pdf_to_ocr_texts(pdf_path, max_pages=None, lang=lang)
         
         if not page_texts:
             logger.error(f"Keine Seiten in PDF gefunden: {pdf_path.name}")

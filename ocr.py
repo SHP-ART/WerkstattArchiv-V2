@@ -58,13 +58,13 @@ def test_tesseract() -> bool:
         return False
 
 
-def pdf_to_images(pdf_path: Path, max_pages: int = 10, dpi: int = 300) -> List[Image.Image]:
+def pdf_to_images(pdf_path: Path, max_pages: Optional[int] = 10, dpi: int = 300) -> List[Image.Image]:
     """
     Konvertiert eine PDF-Datei in eine Liste von Bildern.
     
     Args:
         pdf_path: Pfad zur PDF-Datei
-        max_pages: Maximale Anzahl der zu konvertierenden Seiten
+        max_pages: Maximale Anzahl der zu konvertierenden Seiten (None = alle Seiten)
         dpi: Auflösung für die Konvertierung (höher = bessere Qualität, aber langsamer)
     
     Returns:
@@ -77,10 +77,13 @@ def pdf_to_images(pdf_path: Path, max_pages: int = 10, dpi: int = 300) -> List[I
         raise OCRError(f"PDF-Datei nicht gefunden: {pdf_path}")
     
     try:
-        logger.info(f"Konvertiere PDF zu Bildern: {pdf_path.name} (max. {max_pages} Seiten, {dpi} DPI)")
+        if max_pages is None:
+            logger.info(f"Konvertiere PDF zu Bildern: {pdf_path.name} (alle Seiten, {dpi} DPI)")
+        else:
+            logger.info(f"Konvertiere PDF zu Bildern: {pdf_path.name} (max. {max_pages} Seiten, {dpi} DPI)")
         
         # PDF zu Bildern konvertieren
-        # last_page=max_pages bedeutet: erste max_pages Seiten
+        # last_page=None bedeutet: alle Seiten
         images = convert_from_path(
             pdf_path,
             dpi=dpi,
@@ -127,7 +130,7 @@ def image_to_text(image: Image.Image, lang: str = "deu", config: str = "") -> st
 
 def pdf_to_ocr_texts(
     pdf_path: Path,
-    max_pages: int = 10,
+    max_pages: Optional[int] = 10,
     lang: str = "deu",
     dpi: int = 300
 ) -> List[str]:
@@ -142,7 +145,7 @@ def pdf_to_ocr_texts(
     
     Args:
         pdf_path: Pfad zur PDF-Datei
-        max_pages: Maximale Anzahl der zu verarbeitenden Seiten
+        max_pages: Maximale Anzahl der zu verarbeitenden Seiten (None = alle Seiten)
         lang: Tesseract-Sprachcode
         dpi: Auflösung für die PDF-Konvertierung
     
@@ -244,7 +247,7 @@ def preprocess_image_for_ocr(image: Image.Image, enhance: bool = True) -> Image.
 # Beispiel-Funktion für optimierte OCR bei schlechter Scan-Qualität
 def pdf_to_ocr_texts_enhanced(
     pdf_path: Path,
-    max_pages: int = 10,
+    max_pages: Optional[int] = 10,
     lang: str = "deu",
     dpi: int = 400  # Höhere Auflösung für schlechte Scans
 ) -> List[str]:
@@ -252,6 +255,7 @@ def pdf_to_ocr_texts_enhanced(
     Wie pdf_to_ocr_texts, aber mit Bildvorverarbeitung für bessere Ergebnisse.
     
     Verwende diese Funktion, wenn die Standard-OCR schlechte Ergebnisse liefert.
+    max_pages=None scannt alle Seiten.
     """
     logger.info(f"Starte erweiterte OCR-Verarbeitung: {pdf_path.name}")
     

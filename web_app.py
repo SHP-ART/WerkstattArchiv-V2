@@ -1535,8 +1535,8 @@ def reprocess_auftrag(auftrag_id):
                 'suggestion': 'Die Datei wurde möglicherweise verschoben oder gelöscht. Bitte prüfe das Archiv.'
             }), 404
         
-        # OCR neu durchführen - zuerst Standard-Versuch
-        texts = ocr.pdf_to_ocr_texts(old_file_path, max_pages=c.config.get('max_pages_to_ocr', 10))
+        # OCR neu durchführen - alle Seiten scannen
+        texts = ocr.pdf_to_ocr_texts(old_file_path, max_pages=None)
         
         # Metadaten neu extrahieren (nur von Seite 1)
         metadata = auftrag_parser.extract_auftrag_metadata(texts[0], fallback_filename=old_file_path.name)
@@ -1544,7 +1544,7 @@ def reprocess_auftrag(auftrag_id):
         # Wenn Auftragsnummer NUR aus Dateinamen kam (nicht aus OCR), versuche Enhanced-OCR
         if not metadata.get('auftrag_nr_from_ocr', True):
             logger.info(f"Auftragsnummer kam nur aus Dateinamen, versuche Enhanced-OCR mit höherer DPI...")
-            texts_enhanced = ocr.pdf_to_ocr_texts_enhanced(old_file_path, max_pages=c.config.get('max_pages_to_ocr', 10))
+            texts_enhanced = ocr.pdf_to_ocr_texts_enhanced(old_file_path, max_pages=None)
             metadata_enhanced = auftrag_parser.extract_auftrag_metadata(texts_enhanced[0], fallback_filename=old_file_path.name)
             
             # Falls Enhanced-OCR die Nummer im Text gefunden hat, verwende diese Version
@@ -2167,12 +2167,12 @@ def start_keyword_rescan():
                         logger.warning(f"PDF nicht gefunden: {file_path}")
                         continue
                     
-                    # OCR für Seiten 2-10
+                    # OCR für alle Seiten
                     try:
-                        ocr_texts = ocr.pdf_to_ocr_texts(file_path, max_pages=10)
+                        ocr_texts = ocr.pdf_to_ocr_texts(file_path, max_pages=None)
                         
-                        # Extrahiere Keywords aus Seiten 2-10 (Index 1-9)
-                        attachment_texts = ocr_texts[1:10] if len(ocr_texts) > 1 else []
+                        # Extrahiere Keywords aus allen Seiten außer Seite 1
+                        attachment_texts = ocr_texts[1:] if len(ocr_texts) > 1 else []
                         found_keywords = auftrag_parser.extract_keywords_from_pages(
                             attachment_texts, 
                             keywords_list
