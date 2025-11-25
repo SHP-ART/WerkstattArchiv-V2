@@ -87,8 +87,13 @@
                     
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label class="form-label"><i class="bi bi-hash"></i> Auftragsnummer</label>
-                            <input type="text" class="form-control" id="edit-auftrag-nr" readonly>
+                            <label class="form-label">
+                                <i class="bi bi-hash"></i> Auftragsnummer
+                                <small class="text-warning">(Ändert Archiv + DB)</small>
+                            </label>
+                            <input type="text" class="form-control" id="edit-auftrag-nr" 
+                                   placeholder="z.B. 75238 oder 000303"
+                                   title="Bei Änderung werden Ordner, Datei und Datenbank aktualisiert">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label"><i class="bi bi-person-badge"></i> Kundennummer</label>

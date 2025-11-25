@@ -819,50 +819,144 @@ def get_auftrag_detail(auftrag_id):
 
 @app.route('/api/archive/update', methods=['POST'])
 def update_auftrag():
-    """API: Auftragsdaten aktualisieren"""
+    """API: Auftragsdaten aktualisieren (mit optionaler Auftragsnummer-Änderung)"""
     try:
         data = request.json
         auftrag_id = data.get('id')
+        neue_auftrag_nr = data.get('auftrag_nr')
         
         if not auftrag_id:
             return jsonify({'success': False, 'error': 'ID fehlt'}), 400
         
         c = get_config()
-        db_path = c.get_archiv_root() / "werkstatt.db"
+        db_path = c.get_db_path()
         
         conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         
-        # Update nur für editierbare Felder (nicht auftrag_nr, da diese den Ordnernamen bestimmt)
-        cursor.execute('''
-            UPDATE auftraege 
-            SET kunden_nr = ?,
-                kunde_name = ?,
-                datum = ?,
-                kennzeichen = ?,
-                vin = ?
-            WHERE id = ?
-        ''', (
-            data.get('kunden_nr'),
-            data.get('kunde_name'),
-            data.get('datum'),
-            data.get('kennzeichen'),
-            data.get('vin'),
-            auftrag_id
-        ))
+        # Alte Daten laden
+        cursor.execute('SELECT * FROM auftraege WHERE id = ?', (auftrag_id,))
+        row = cursor.fetchone()
         
-        conn.commit()
-        affected = cursor.rowcount
-        conn.close()
-        
-        if affected == 0:
+        if not row:
+            conn.close()
             return jsonify({'success': False, 'error': 'Auftrag nicht gefunden'}), 404
         
-        logger.info(f"Auftrag {data.get('auftrag_nr')} aktualisiert (ID: {auftrag_id})")
+        alte_auftrag_nr = row['auftrag_nr']
+        alte_datei = Path(row['file_path'])
+        
+        # Prüfe ob Auftragsnummer geändert wurde
+        if neue_auftrag_nr and neue_auftrag_nr != alte_auftrag_nr:
+            logger.info(f"Auftragsnummer-Änderung: {alte_auftrag_nr} → {neue_auftrag_nr}")
+            
+            # Import für Archiv-Operationen
+            from archive import format_auftrag_nr, get_thousand_block
+            import shutil
+            
+            # Normalisiere neue Nummer
+            neue_auftrag_nr_formatted = format_auftrag_nr(neue_auftrag_nr)
+            
+            # Berechne neue Pfade
+            archiv_root = c.get_archiv_root()
+            use_thousand_blocks = c.config.get('use_thousand_blocks', False)
+            use_year_folders = c.config.get('use_year_folders', True)
+            
+            if use_year_folders and row['datum']:
+                jahr = row['datum'][:4]  # YYYY-MM-DD → YYYY
+            else:
+                jahr = None
+            
+            if use_thousand_blocks:
+                block = get_thousand_block(neue_auftrag_nr_formatted)
+                if jahr:
+                    neuer_ordner = archiv_root / jahr / block / neue_auftrag_nr_formatted
+                else:
+                    neuer_ordner = archiv_root / block / neue_auftrag_nr_formatted
+            else:
+                if jahr:
+                    neuer_ordner = archiv_root / jahr / neue_auftrag_nr_formatted
+                else:
+                    neuer_ordner = archiv_root / neue_auftrag_nr_formatted
+            
+            # Neuer Dateiname
+            alter_filename = alte_datei.name
+            neuer_filename = alter_filename.replace(alte_auftrag_nr, neue_auftrag_nr_formatted, 1)
+            neue_datei = neuer_ordner / neuer_filename
+            
+            # Archiv aktualisieren
+            if alte_datei.exists():
+                neuer_ordner.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(alte_datei), str(neue_datei))
+                logger.info(f"✓ Datei verschoben: {neue_datei.name}")
+                
+                # Metadaten verschieben
+                alter_ordner = alte_datei.parent
+                for meta_file in ['data.csv', 'meta.json']:
+                    alte_meta = alter_ordner / meta_file
+                    if alte_meta.exists():
+                        neue_meta = neuer_ordner / meta_file
+                        shutil.move(str(alte_meta), str(neue_meta))
+                
+                # Alten Ordner löschen (falls leer)
+                try:
+                    if not any(alter_ordner.iterdir()):
+                        alter_ordner.rmdir()
+                except:
+                    pass
+            else:
+                logger.warning(f"Datei existiert nicht: {alte_datei}")
+                neue_datei = neue_datei  # Nutze neuen Pfad trotzdem
+            
+            # Datenbank aktualisieren (inkl. neuer Auftragsnummer und Pfad)
+            cursor.execute('''
+                UPDATE auftraege 
+                SET auftrag_nr = ?,
+                    kunden_nr = ?,
+                    kunde_name = ?,
+                    datum = ?,
+                    kennzeichen = ?,
+                    vin = ?,
+                    file_path = ?
+                WHERE id = ?
+            ''', (
+                neue_auftrag_nr_formatted,
+                data.get('kunden_nr'),
+                data.get('kunde_name'),
+                data.get('datum'),
+                data.get('kennzeichen'),
+                data.get('vin'),
+                str(neue_datei),
+                auftrag_id
+            ))
+            
+            logger.info(f"✓ Auftrag aktualisiert: {alte_auftrag_nr} → {neue_auftrag_nr_formatted}")
+        else:
+            # Normale Aktualisierung ohne Auftragsnummer-Änderung
+            cursor.execute('''
+                UPDATE auftraege 
+                SET kunden_nr = ?,
+                    kunde_name = ?,
+                    datum = ?,
+                    kennzeichen = ?,
+                    vin = ?
+                WHERE id = ?
+            ''', (
+                data.get('kunden_nr'),
+                data.get('kunde_name'),
+                data.get('datum'),
+                data.get('kennzeichen'),
+                data.get('vin'),
+                auftrag_id
+            ))
+        
+        conn.commit()
+        conn.close()
+        
         return jsonify({'success': True})
         
     except Exception as e:
-        logger.error(f"Fehler beim Aktualisieren: {e}")
+        logger.error(f"Fehler beim Aktualisieren: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
