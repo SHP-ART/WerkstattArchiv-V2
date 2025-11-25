@@ -10,15 +10,20 @@ echo ============================================================
 echo.
 
 REM Prüfe ob Python installiert ist
+echo [*] Prüfe Python-Installation...
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo [FEHLER] Python ist nicht installiert!
+    echo.
+    echo ============================================================
+    echo   [FEHLER] Python ist nicht installiert!
+    echo ============================================================
     echo.
     echo Bitte installieren Sie Python 3.9 oder hoeher von:
     echo https://www.python.org/downloads/
     echo.
     echo WICHTIG: Waehlen Sie "Add Python to PATH" waehrend der Installation!
     echo.
+    echo Druecken Sie eine Taste um fortzufahren...
     pause
     exit /b 1
 )

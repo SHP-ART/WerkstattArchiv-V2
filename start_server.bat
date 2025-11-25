@@ -112,12 +112,16 @@ echo.
 REM [7/8] Starte Web-Server
 echo [7/8] Starte Web-Server...
 set LOGFILE=logs\server.log
+echo [INFO] Log-Datei: %LOGFILE%
+echo.
 
-REM Starte Python im Hintergrund und leite in Log um
-start /B python web_app.py > %LOGFILE% 2>&1
+REM Starte Python im Hintergrund mit Port 8080 und leite in Log um
+echo [*] Starte: python web_app.py --port 8080
+start /B python web_app.py --port 8080 > %LOGFILE% 2>&1
 
-REM Warte kurz bis Server startet
-timeout /t 2 /nobreak >nul
+REM Warte bis Server startet
+echo [*] Warte auf Server-Start...
+timeout /t 3 /nobreak >nul
 echo [OK] Server gestartet
 echo.
 
@@ -127,13 +131,20 @@ echo.
 echo ============================================================
 echo   Live-Log von: %LOGFILE%
 echo ============================================================
+echo.
 
 REM Zeige die ersten Zeilen des Logs
-timeout /t 1 /nobreak >nul
+timeout /t 2 /nobreak >nul
 if exist %LOGFILE% (
-    for /f "delims=" %%i in (%LOGFILE%) do echo ^| %%i
+    echo [LOG-START]
+    for /f "delims=" %%i in (%LOGFILE%) do echo   %%i
+    echo [LOG-END]
+) else (
+    echo [WARNUNG] Log-Datei nicht gefunden!
+    echo Prüfe ob Server gestartet ist...
 )
 
+echo.
 echo ============================================================
 echo.
 echo ============================================================
