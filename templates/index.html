@@ -502,7 +502,21 @@
         fetch('/api/folder/open-input', {
             method: 'GET'
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.text(); // Erst als Text holen
+        })
+        .then(text => {
+            try {
+                return JSON.parse(text); // Dann parsen
+            } catch (e) {
+                console.error('JSON Parse Error:', e);
+                console.error('Response:', text);
+                throw new Error(`Ungültige Antwort vom Server: ${text.substring(0, 100)}`);
+            }
+        })
         .then(data => {
             if (data.success) {
                 // Kurzes visuelles Feedback
@@ -522,7 +536,8 @@
             }
         })
         .catch(error => {
-            alert(`Fehler beim Öffnen: ${error}`);
+            console.error('Fehler beim Öffnen:', error);
+            alert(`Fehler beim Öffnen: ${error.message}`);
         });
     });
 
@@ -585,7 +600,21 @@
         fetch(`/api/archive/reveal/${auftragId}`, {
             method: 'GET'
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.text();
+        })
+        .then(text => {
+            try {
+                return JSON.parse(text);
+            } catch (e) {
+                console.error('JSON Parse Error:', e);
+                console.error('Response:', text);
+                throw new Error(`Ungültige Antwort vom Server: ${text.substring(0, 100)}`);
+            }
+        })
         .then(data => {
             if (data.success) {
                 // Kurzes visuelles Feedback
@@ -605,7 +634,8 @@
             }
         })
         .catch(error => {
-            alert(`Fehler beim Öffnen: ${error}`);
+            console.error('Fehler beim Öffnen:', error);
+            alert(`Fehler beim Öffnen: ${error.message}`);
         });
     }
 

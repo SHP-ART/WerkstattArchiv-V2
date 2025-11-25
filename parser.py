@@ -51,6 +51,8 @@ def extract_auftragsnummer(text: str) -> Optional[str]:
         r'Auftragsnummer\s*[:\.]?\s*[\r\n]+\s*(\d{3,6})',
         # Nach "AR" kommt oft die Auftragsnummer
         r'AR\s*["\']?\s*Auftragsnummer\s*[:\.]?\s*[\r\n]*\s*(\d{3,6})',
+        # Citroën/Peugeot Format: "1710 75187" - zweite Zahl ist Auftragsnummer
+        r'\b\d{4}\s+(\d{5})\b',
         # 5-6 stellige Zahl am Anfang einer Zeile (typisch für LOCO-Soft)
         r'^\s*(\d{5,6})\s*$',
         # Nach "Seite:" steht manchmal die Auftragsnummer in der vorherigen Zeile

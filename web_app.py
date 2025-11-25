@@ -127,18 +127,19 @@ def get_stats():
         
         # Letzte 5 Aufträge
         cursor.execute('''
-            SELECT auftrag_nr, datum, kunde_name, kennzeichen, created_at 
+            SELECT id, auftrag_nr, datum, kunde_name, kennzeichen, created_at 
             FROM auftraege 
             ORDER BY created_at DESC 
             LIMIT 5
         ''')
         recent = [
             {
-                'auftrag_nr': row[0],
-                'datum': row[1] or 'N/A',
-                'kunde_name': row[2] or 'N/A',
-                'kennzeichen': row[3] or 'N/A',
-                'created_at': row[4]
+                'id': row[0],
+                'auftrag_nr': row[1],
+                'datum': row[2] or 'N/A',
+                'kunde_name': row[3] or 'N/A',
+                'kennzeichen': row[4] or 'N/A',
+                'created_at': row[5]
             }
             for row in cursor.fetchall()
         ]
@@ -676,7 +677,7 @@ def reveal_in_finder(auftrag_id):
     
     try:
         c = get_config()
-        db_path = c.get_archiv_root() / "werkstatt.db"
+        db_path = c.get_db_path()  # Verwende config.get_db_path() statt manuell
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
@@ -685,41 +686,53 @@ def reveal_in_finder(auftrag_id):
         conn.close()
         
         if not row:
-            return jsonify({'error': 'Auftrag nicht gefunden'}), 404
+            return jsonify({'success': False, 'error': 'Auftrag nicht gefunden'}), 404
         
         file_path = Path(row[0])
         
         if not file_path.exists():
-            return jsonify({'error': 'Datei nicht gefunden'}), 404
+            return jsonify({'success': False, 'error': 'Datei nicht gefunden'}), 404
         
         # Öffne Finder/Explorer mit ausgewählter Datei
         system = platform.system()
         
         if system == 'Darwin':  # macOS
-            subprocess.run(['open', '-R', str(file_path)])
+            result = subprocess.run(['open', '-R', str(file_path)], capture_output=True, text=True)
+            if result.returncode != 0:
+                logger.error(f"Finder-Fehler: {result.stderr}")
+                return jsonify({'success': False, 'error': f'Fehler beim Öffnen: {result.stderr}'}), 500
             logger.info(f"Finder geöffnet für: {file_path}")
         elif system == 'Windows':
-            subprocess.run(['explorer', '/select,', str(file_path)])
+            result = subprocess.run(['explorer', '/select,', str(file_path)], capture_output=True, text=True)
+            if result.returncode != 0:
+                logger.error(f"Explorer-Fehler: {result.stderr}")
+                return jsonify({'success': False, 'error': f'Fehler beim Öffnen: {result.stderr}'}), 500
             logger.info(f"Explorer geöffnet für: {file_path}")
         elif system == 'Linux':
             # Versuche verschiedene Dateimanager
             try:
-                subprocess.run(['nautilus', '--select', str(file_path)])
+                result = subprocess.run(['nautilus', '--select', str(file_path)], capture_output=True, text=True)
+                if result.returncode != 0:
+                    raise FileNotFoundError()
             except FileNotFoundError:
                 try:
-                    subprocess.run(['dolphin', '--select', str(file_path)])
+                    result = subprocess.run(['dolphin', '--select', str(file_path)], capture_output=True, text=True)
+                    if result.returncode != 0:
+                        raise FileNotFoundError()
                 except FileNotFoundError:
                     # Fallback: Öffne nur den Ordner
-                    subprocess.run(['xdg-open', str(file_path.parent)])
+                    result = subprocess.run(['xdg-open', str(file_path.parent)], capture_output=True, text=True)
+                    if result.returncode != 0:
+                        return jsonify({'success': False, 'error': 'Kein Dateimanager gefunden'}), 500
             logger.info(f"Dateimanager geöffnet für: {file_path}")
         else:
-            return jsonify({'error': f'Betriebssystem {system} nicht unterstützt'}), 400
+            return jsonify({'success': False, 'error': f'Betriebssystem {system} nicht unterstützt'}), 400
         
         return jsonify({'success': True, 'message': 'Datei im Finder/Explorer angezeigt'})
         
     except Exception as e:
-        logger.error(f"Fehler beim Öffnen im Finder: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Fehler beim Öffnen im Finder: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/folder/open-input')
@@ -733,28 +746,40 @@ def open_input_folder():
         input_folder = c.get_input_folder()
         
         if not input_folder.exists():
-            return jsonify({'error': 'Eingangsordner nicht gefunden'}), 404
+            return jsonify({'success': False, 'error': 'Eingangsordner nicht gefunden'}), 404
         
         # Öffne Finder/Explorer
         system = platform.system()
         
         if system == 'Darwin':  # macOS
-            subprocess.run(['open', str(input_folder)])
+            result = subprocess.run(['open', str(input_folder)], capture_output=True, text=True)
+            if result.returncode != 0:
+                logger.error(f"Finder-Fehler: {result.stderr}")
+                return jsonify({'success': False, 'error': f'Fehler beim Öffnen: {result.stderr}'}), 500
             logger.info(f"Finder geöffnet: {input_folder}")
         elif system == 'Windows':
-            subprocess.run(['explorer', str(input_folder)])
+            result = subprocess.run(['explorer', str(input_folder)], capture_output=True, text=True)
+            if result.returncode != 0:
+                logger.error(f"Explorer-Fehler: {result.stderr}")
+                return jsonify({'success': False, 'error': f'Fehler beim Öffnen: {result.stderr}'}), 500
             logger.info(f"Explorer geöffnet: {input_folder}")
         elif system == 'Linux':
             try:
-                subprocess.run(['xdg-open', str(input_folder)])
+                result = subprocess.run(['xdg-open', str(input_folder)], capture_output=True, text=True)
+                if result.returncode != 0:
+                    raise FileNotFoundError()
             except FileNotFoundError:
                 try:
-                    subprocess.run(['nautilus', str(input_folder)])
+                    result = subprocess.run(['nautilus', str(input_folder)], capture_output=True, text=True)
+                    if result.returncode != 0:
+                        raise FileNotFoundError()
                 except FileNotFoundError:
-                    subprocess.run(['dolphin', str(input_folder)])
+                    result = subprocess.run(['dolphin', str(input_folder)], capture_output=True, text=True)
+                    if result.returncode != 0:
+                        return jsonify({'success': False, 'error': 'Kein Dateimanager gefunden'}), 500
             logger.info(f"Dateimanager geöffnet: {input_folder}")
         else:
-            return jsonify({'error': f'Betriebssystem {system} nicht unterstützt'}), 400
+            return jsonify({'success': False, 'error': f'Betriebssystem {system} nicht unterstützt'}), 400
         
         return jsonify({
             'success': True,
@@ -763,8 +788,8 @@ def open_input_folder():
         })
         
     except Exception as e:
-        logger.error(f"Fehler beim Öffnen des Eingangsordners: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Fehler beim Öffnen des Eingangsordners: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/archive/detail/<int:auftrag_id>')
@@ -1869,19 +1894,21 @@ def import_folders():
                     'timestamp': datetime.now().isoformat()
                 })
                 
-                # Nutze folder_import.process_folder_for_import
-                success = folder_import.process_folder_for_import(folder_path, c)
+                # Nutze folder_import.process_folder_for_import (gibt Dict zurück!)
+                result = folder_import.process_folder_for_import(folder_path, c)
                 
-                if success:
+                if result and result.get('success'):
                     processing_queue.put({
                         'type': 'success',
-                        'message': f'✓ Erfolgreich importiert: {folder_name}',
+                        'message': f'✓ Erfolgreich importiert: {folder_name} (Auftrag {result.get("auftrag_nr", "?")})',
                         'timestamp': datetime.now().isoformat()
                     })
                     results.append({
                         'folder': folder_name,
                         'success': True,
-                        'message': 'Erfolgreich importiert und archiviert'
+                        'message': f'Erfolgreich importiert als {result.get("auftrag_nr", "?")}',
+                        'auftrag_nr': result.get('auftrag_nr'),
+                        'pdf_count': result.get('pdf_count')
                     })
                 else:
                     processing_queue.put({
