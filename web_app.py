@@ -1227,12 +1227,18 @@ def manual_scan():
         success_count = 0
         error_count = 0
 
-        for pdf_file in pdf_files:
+        for idx, pdf_file in enumerate(pdf_files, 1):
             try:
-                # Log Start
+                # Fortschritts-Info
                 processing_queue.put({
                     'type': 'info',
-                    'message': f'Verarbeite: {pdf_file.name}',
+                    'message': f'[{idx}/{len(pdf_files)}] Verarbeite: {pdf_file.name}',
+                    'timestamp': datetime.now().isoformat()
+                })
+                
+                processing_queue.put({
+                    'type': 'info',
+                    'message': f'  → Starte OCR und Extraktion...',
                     'timestamp': datetime.now().isoformat()
                 })
                 
@@ -1268,6 +1274,18 @@ def manual_scan():
                 })
 
         logger.info(f"Manueller Scan abgeschlossen: {success_count} erfolgreich, {error_count} Fehler")
+        
+        # Abschluss-Nachricht
+        processing_queue.put({
+            'type': 'success' if error_count == 0 else 'info',
+            'message': f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+            'timestamp': datetime.now().isoformat()
+        })
+        processing_queue.put({
+            'type': 'success' if error_count == 0 else 'info',
+            'message': f'Scan abgeschlossen: {success_count} erfolgreich, {error_count} Fehler',
+            'timestamp': datetime.now().isoformat()
+        })
 
         return jsonify({
             'success': True,
@@ -1809,9 +1827,18 @@ def import_folders():
         })
         
         results = []
+        current = 0
         
         for folder_name in folder_names:
+            current += 1
             folder_path = input_folder / folder_name
+            
+            # Fortschritts-Info
+            processing_queue.put({
+                'type': 'info',
+                'message': f'[{current}/{len(folder_names)}] Verarbeite: {folder_name}',
+                'timestamp': datetime.now().isoformat()
+            })
             
             if not folder_path.exists() or not folder_path.is_dir():
                 processing_queue.put({
@@ -1826,11 +1853,19 @@ def import_folders():
                 })
                 continue
             
+            # Zähle PDFs im Ordner
+            pdf_count = len(list(folder_path.glob('*.pdf')))
+            processing_queue.put({
+                'type': 'info',
+                'message': f'  → {pdf_count} PDF(s) gefunden in {folder_name}',
+                'timestamp': datetime.now().isoformat()
+            })
+            
             try:
                 logger.info(f"Importiere Ordner: {folder_name}")
                 processing_queue.put({
                     'type': 'info',
-                    'message': f'Importiere Ordner: {folder_name}',
+                    'message': f'  → Starte OCR und Extraktion...',
                     'timestamp': datetime.now().isoformat()
                 })
                 
@@ -1875,13 +1910,26 @@ def import_folders():
         
         # Zähle Erfolge
         successful = sum(1 for r in results if r['success'])
+        failed = len(results) - successful
+        
+        # Abschluss-Nachricht
+        processing_queue.put({
+            'type': 'success' if failed == 0 else 'info',
+            'message': f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+            'timestamp': datetime.now().isoformat()
+        })
+        processing_queue.put({
+            'type': 'success' if failed == 0 else 'info',
+            'message': f'Ordner-Import abgeschlossen: {successful} erfolgreich, {failed} Fehler',
+            'timestamp': datetime.now().isoformat()
+        })
         
         return jsonify({
             'success': True,
             'results': results,
             'total': len(results),
             'successful': successful,
-            'failed': len(results) - successful
+            'failed': failed
         })
         
     except Exception as e:

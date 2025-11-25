@@ -230,10 +230,29 @@ def process_folder_for_import(
             main_texts = pdf_to_ocr_texts(main_pdf, max_pages=10)
             logger.info(f"✓ OCR: {len(main_texts)} Seiten erkannt")
             
-            # Metadaten aus erster Seite
-            metadata = extract_auftrag_metadata(main_texts[0] if main_texts else "")
+            # Metadaten aus erster Seite extrahieren
+            # Nutze Ordnernamen als Fallback für Auftragsnummer
+            try:
+                metadata = extract_auftrag_metadata(
+                    main_texts[0] if main_texts else "",
+                    fallback_filename=folder_path.name  # Ordnername als Fallback
+                )
+            except Exception as e:
+                # Wenn Metadaten-Extraktion fehlschlägt, nutze Basis-Metadaten
+                logger.warning(f"Metadaten-Extraktion fehlgeschlagen: {e}")
+                logger.info(f"Nutze Basis-Metadaten mit Auftragsnummer aus Ordnername")
+                metadata = {
+                    "auftrag_nr": auftrag_nr,
+                    "auftrag_nr_from_ocr": False,
+                    "kunden_nr": None,
+                    "name": None,
+                    "datum": None,
+                    "kennzeichen": None,
+                    "vin": None,
+                    "formular_version": "unbekannt"
+                }
             
-            # Auftragsnummer überschreiben (Ordnername hat Priorität)
+            # Auftragsnummer überschreiben (Ordnername hat immer Priorität)
             metadata["auftrag_nr"] = auftrag_nr
             logger.info(f"✓ Metadaten: Kunde={metadata.get('name', 'N/A')}, "
                        f"KZ={metadata.get('kennzeichen', 'N/A')}")
