@@ -2294,6 +2294,17 @@ if __name__ == '__main__':
     # Config initialisieren
     cfg = config.Config()
     
+    print("")
+    print("=" * 60)
+    print("  Werkstatt-Archiv Web-UI")
+    print("=" * 60)
+    print(f"  Host:    {args.host}")
+    print(f"  Port:    {args.port}")
+    print(f"  URL:     http://{args.host}:{args.port}")
+    print(f"  Debug:   {'Ja' if args.debug else 'Nein'}")
+    print("=" * 60)
+    print("")
+    
     logger.info("="*60)
     logger.info("Werkstatt-Archiv Web-UI")
     logger.info("="*60)
@@ -2306,6 +2317,7 @@ if __name__ == '__main__':
         if args.debug:
             # Development-Modus: Flask Development Server
             logger.warning("WARNUNG: Debug-Modus nutzt Flask Development Server!")
+            print("[DEBUG] Starte Flask Development Server...")
             app.run(
                 host=args.host, 
                 port=args.port, 
@@ -2315,6 +2327,11 @@ if __name__ == '__main__':
         else:
             # Production-Modus: Waitress WSGI Server
             from waitress import serve
+            print("[INFO] Starte Waitress Production Server...")
+            print(f"[INFO] Server lauscht auf http://{args.host}:{args.port}")
+            print("")
+            print("[INFO] Druecke Strg+C zum Beenden")
+            print("")
             logger.info("Starte Waitress Production Server...")
             serve(
                 app,
@@ -2326,7 +2343,40 @@ if __name__ == '__main__':
                 _quiet=False
             )
     except KeyboardInterrupt:
+        print("")
+        print("[INFO] Server wird beendet...")
         logger.info("\nServer wird beendet...")
+    except OSError as e:
+        if "Address already in use" in str(e) or "10048" in str(e):
+            print("")
+            print("=" * 60)
+            print("[FEHLER] Port ist bereits belegt!")
+            print("=" * 60)
+            print(f"Port {args.port} wird bereits verwendet.")
+            print("")
+            print("Loesungen:")
+            print(f"  1. Anderen Port verwenden: python web_app.py --port 8081")
+            print(f"  2. Alten Prozess beenden:")
+            print(f"     Windows: netstat -ano | findstr :{args.port}")
+            print(f"              taskkill /F /PID <PID>")
+            print("")
+            logger.error(f"Port {args.port} bereits belegt: {e}")
+        else:
+            print("")
+            print("=" * 60)
+            print(f"[FEHLER] Netzwerk-Fehler: {e}")
+            print("=" * 60)
+            logger.error(f"OSError: {e}")
+        raise
     except Exception as e:
+        print("")
+        print("=" * 60)
+        print(f"[FEHLER] Server-Fehler: {e}")
+        print("=" * 60)
+        print("")
+        print("Details:")
+        import traceback
+        traceback.print_exc()
+        print("")
         logger.error(f"Server-Fehler: {e}")
         raise
