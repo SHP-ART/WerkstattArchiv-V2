@@ -2294,6 +2294,22 @@ if __name__ == '__main__':
     # Config initialisieren
     cfg = config.Config()
     
+    # Tesseract OCR initialisieren (wichtig für Windows!)
+    tesseract_cmd = cfg.get('tesseract_cmd')
+    ocr.setup_tesseract(tesseract_cmd)
+    
+    # Tesseract testen und Warnung ausgeben wenn nicht gefunden
+    if not ocr.test_tesseract():
+        print("")
+        print("!" * 60)
+        print("  WARNUNG: Tesseract OCR nicht gefunden!")
+        print("  PDF-Verarbeitung wird nicht funktionieren.")
+        print("")
+        print("  Windows: Führe 'install_tesseract.bat' aus")
+        print("  macOS:   brew install tesseract tesseract-lang")
+        print("!" * 60)
+        print("")
+    
     print("")
     print("=" * 60)
     print("  Werkstatt-Archiv Web-UI")

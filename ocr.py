@@ -26,6 +26,33 @@ class OCRError(Exception):
     pass
 
 
+def _find_tesseract_windows() -> Optional[str]:
+    """
+    Sucht Tesseract auf Windows in Standard-Installationspfaden.
+    
+    Returns:
+        Pfad zu tesseract.exe oder None wenn nicht gefunden
+    """
+    import platform
+    if platform.system() != 'Windows':
+        return None
+    
+    # Standard-Installationspfade für Windows
+    standard_paths = [
+        Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe"),
+        Path(r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"),
+        Path.home() / "AppData" / "Local" / "Programs" / "Tesseract-OCR" / "tesseract.exe",
+        Path(r"D:\Program Files\Tesseract-OCR\tesseract.exe"),
+    ]
+    
+    for path in standard_paths:
+        if path.exists():
+            logger.info(f"Tesseract gefunden: {path}")
+            return str(path)
+    
+    return None
+
+
 def setup_tesseract(tesseract_cmd: Optional[str] = None) -> None:
     """
     Konfiguriert den Pfad zur Tesseract-Binary.
@@ -33,9 +60,20 @@ def setup_tesseract(tesseract_cmd: Optional[str] = None) -> None:
     Args:
         tesseract_cmd: Pfad zur tesseract.exe (Windows) oder None für Auto-Detection
     """
+    import platform
+    
     if tesseract_cmd:
         pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
         logger.info(f"Tesseract-Pfad gesetzt: {tesseract_cmd}")
+    elif platform.system() == 'Windows':
+        # Auf Windows: Automatisch in Standard-Pfaden suchen
+        found_path = _find_tesseract_windows()
+        if found_path:
+            pytesseract.pytesseract.tesseract_cmd = found_path
+            logger.info(f"Tesseract automatisch gefunden: {found_path}")
+        else:
+            logger.warning("Tesseract nicht in Standard-Pfaden gefunden.")
+            logger.warning("Bitte 'install_tesseract.bat' ausführen oder Pfad in Config setzen.")
 
 
 def test_tesseract() -> bool:
@@ -45,16 +83,42 @@ def test_tesseract() -> bool:
     Returns:
         True wenn Tesseract funktioniert, sonst False
     """
+    import platform
+    
     try:
         version = pytesseract.get_tesseract_version()
         logger.info(f"Tesseract Version: {version}")
         return True
     except Exception as e:
         logger.error(f"Tesseract nicht gefunden oder fehlerhaft: {e}")
-        logger.error("Bitte Tesseract installieren:")
-        logger.error("  macOS: brew install tesseract tesseract-lang")
-        logger.error("  Windows: https://github.com/UB-Mannheim/tesseract/wiki")
-        logger.error("  Linux: sudo apt-get install tesseract-ocr tesseract-ocr-deu")
+        logger.error("")
+        logger.error("=" * 60)
+        logger.error("  TESSERACT OCR NICHT GEFUNDEN!")
+        logger.error("=" * 60)
+        
+        if platform.system() == 'Windows':
+            logger.error("")
+            logger.error("  LÖSUNG FÜR WINDOWS:")
+            logger.error("  1. Führe 'install_tesseract.bat' aus")
+            logger.error("     ODER")
+            logger.error("  2. Lade Tesseract manuell herunter:")
+            logger.error("     https://github.com/UB-Mannheim/tesseract/wiki")
+            logger.error("")
+            logger.error("  Nach der Installation:")
+            logger.error("  - Füge in .archiv_config.json hinzu:")
+            logger.error('    "tesseract_cmd": "C:\\\\Program Files\\\\Tesseract-OCR\\\\tesseract.exe"')
+            logger.error("")
+            logger.error("  WICHTIG: Bei der Installation 'German' als Sprache auswählen!")
+        elif platform.system() == 'Darwin':
+            logger.error("")
+            logger.error("  LÖSUNG FÜR macOS:")
+            logger.error("  brew install tesseract tesseract-lang")
+        else:
+            logger.error("")
+            logger.error("  LÖSUNG FÜR LINUX:")
+            logger.error("  sudo apt-get install tesseract-ocr tesseract-ocr-deu")
+        
+        logger.error("=" * 60)
         return False
 
 
