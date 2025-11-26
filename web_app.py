@@ -821,7 +821,10 @@ def get_auftrag_detail(auftrag_id):
 def update_auftrag():
     """API: Auftragsdaten aktualisieren (mit optionaler Auftragsnummer-Änderung)"""
     try:
-        data = request.json
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Keine JSON-Daten'}), 400
+        
         auftrag_id = data.get('id')
         neue_auftrag_nr = data.get('auftrag_nr')
         
@@ -1174,7 +1177,9 @@ def customers_list():
 def update_customer():
     """API: Kundendaten aktualisieren"""
     try:
-        data = request.json
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Keine JSON-Daten'}), 400
 
         # Alte Werte
         old_kunde_name = data.get('old_kunde_name', '')
@@ -1255,7 +1260,10 @@ def update_customer():
 def mark_complete():
     """API: Auftrag als vollständig markieren"""
     try:
-        data = request.json
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Keine JSON-Daten'}), 400
+        
         auftrag_id = data.get('id')
 
         if not auftrag_id:
