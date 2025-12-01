@@ -16,14 +16,48 @@ echo Werkstatt-Archiv UPDATE
 echo ============================================================================
 echo.
 
-REM Pruefe ob Git installiert ist
+REM Git-Pfad suchen (auch wenn nicht im PATH)
+set "GIT_CMD=git"
+
+REM Zuerst pruefen ob git im PATH ist
 where git >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
-    echo [FEHLER] Git ist nicht installiert oder nicht im PATH!
-    echo          Bitte Git installieren: https://git-scm.com/download/win
-    pause
-    exit /b 1
+    echo [INFO] Git nicht im PATH, suche in Standard-Pfaden...
+    
+    REM Standard-Installationspfade durchsuchen
+    if exist "C:\Program Files\Git\cmd\git.exe" (
+        set "GIT_CMD=C:\Program Files\Git\cmd\git.exe"
+        echo [OK] Git gefunden: !GIT_CMD!
+    ) else if exist "C:\Program Files (x86)\Git\cmd\git.exe" (
+        set "GIT_CMD=C:\Program Files (x86)\Git\cmd\git.exe"
+        echo [OK] Git gefunden: !GIT_CMD!
+    ) else if exist "%LOCALAPPDATA%\Programs\Git\cmd\git.exe" (
+        set "GIT_CMD=%LOCALAPPDATA%\Programs\Git\cmd\git.exe"
+        echo [OK] Git gefunden: !GIT_CMD!
+    ) else if exist "%USERPROFILE%\AppData\Local\Programs\Git\cmd\git.exe" (
+        set "GIT_CMD=%USERPROFILE%\AppData\Local\Programs\Git\cmd\git.exe"
+        echo [OK] Git gefunden: !GIT_CMD!
+    ) else (
+        echo.
+        echo [FEHLER] Git ist nicht installiert oder nicht gefunden!
+        echo.
+        echo          Moegliche Loesungen:
+        echo          1. Terminal/CMD neu starten (nach Git-Installation)
+        echo          2. Computer neu starten
+        echo          3. Git installieren: install_git.bat ausfuehren
+        echo.
+        echo          Standard-Pfade geprueft:
+        echo          - C:\Program Files\Git\cmd\git.exe
+        echo          - C:\Program Files (x86)\Git\cmd\git.exe
+        echo          - %LOCALAPPDATA%\Programs\Git\cmd\git.exe
+        echo.
+        pause
+        exit /b 1
+    )
 )
+
+echo [OK] Verwende Git: %GIT_CMD%
+echo.
 
 REM Pruefe ob wir in einem Git-Repository sind
 if not exist ".git" (
@@ -45,13 +79,13 @@ echo [1/5] Pruefe auf lokale Aenderungen...
 echo ------------------------------------------------------------------------------
 
 REM Pruefe auf uncommittete Aenderungen (nur Code-Dateien)
-git diff --quiet HEAD -- *.py *.bat *.sh templates/ static/ 2>nul
+"%GIT_CMD%" diff --quiet HEAD -- *.py *.bat *.sh templates/ static/ 2>nul
 if %ERRORLEVEL% NEQ 0 (
     echo.
     echo [WARNUNG] Du hast lokale Aenderungen an Code-Dateien!
     echo           Diese werden beim Update ueberschrieben.
     echo.
-    git status --short
+    "%GIT_CMD%" status --short
     echo.
     set /p confirm="Trotzdem fortfahren? Aenderungen gehen verloren! (j/n): "
     if /i not "!confirm!"=="j" (
@@ -62,7 +96,7 @@ if %ERRORLEVEL% NEQ 0 (
     
     REM Setze Code-Dateien zurueck (Config und Daten bleiben erhalten)
     echo Setze Code-Dateien zurueck...
-    git checkout -- *.py *.bat *.sh templates/ static/ 2>nul
+    "%GIT_CMD%" checkout -- *.py *.bat *.sh templates/ static/ 2>nul
 )
 
 echo OK - Keine Konflikte mit Konfiguration/Daten
@@ -72,15 +106,15 @@ echo [2/5] Hole neueste Version von GitHub...
 echo ------------------------------------------------------------------------------
 
 REM Aktueller Branch
-for /f "tokens=*" %%a in ('git rev-parse --abbrev-ref HEAD') do set BRANCH=%%a
+for /f "tokens=*" %%a in ('"%GIT_CMD%" rev-parse --abbrev-ref HEAD') do set BRANCH=%%a
 echo Branch: %BRANCH%
 
 REM Aktueller Commit (vor Update)
-for /f "tokens=*" %%a in ('git rev-parse --short HEAD') do set OLD_COMMIT=%%a
+for /f "tokens=*" %%a in ('"%GIT_CMD%" rev-parse --short HEAD') do set OLD_COMMIT=%%a
 echo Aktueller Commit: %OLD_COMMIT%
 
 REM Git Pull
-git pull origin %BRANCH%
+"%GIT_CMD%" pull origin %BRANCH%
 if %ERRORLEVEL% NEQ 0 (
     echo.
     echo [FEHLER] Git Pull fehlgeschlagen!
@@ -90,7 +124,7 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 REM Neuer Commit (nach Update)
-for /f "tokens=*" %%a in ('git rev-parse --short HEAD') do set NEW_COMMIT=%%a
+for /f "tokens=*" %%a in ('"%GIT_CMD%" rev-parse --short HEAD') do set NEW_COMMIT=%%a
 
 echo.
 if "%OLD_COMMIT%"=="%NEW_COMMIT%" (
@@ -99,7 +133,7 @@ if "%OLD_COMMIT%"=="%NEW_COMMIT%" (
     echo Update: %OLD_COMMIT% -^> %NEW_COMMIT%
     echo.
     echo Aenderungen:
-    git log --oneline %OLD_COMMIT%..%NEW_COMMIT%
+    "%GIT_CMD%" log --oneline %OLD_COMMIT%..%NEW_COMMIT%
 )
 echo.
 
