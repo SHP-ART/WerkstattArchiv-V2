@@ -62,28 +62,48 @@ def setup_tesseract(tesseract_cmd: Optional[str] = None) -> None:
     """
     import platform
     
+    # Wenn ein Pfad angegeben wurde, prüfe ob er existiert
     if tesseract_cmd:
-        pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
-        logger.info(f"Tesseract-Pfad gesetzt: {tesseract_cmd}")
-    elif platform.system() == 'Windows':
-        # Auf Windows: Automatisch in Standard-Pfaden suchen
+        # Pfad bereinigen (Backslashes normalisieren)
+        clean_path = str(Path(tesseract_cmd))
+        
+        if Path(clean_path).exists():
+            pytesseract.pytesseract.tesseract_cmd = clean_path
+            logger.info(f"Tesseract-Pfad gesetzt: {clean_path}")
+            return
+        else:
+            logger.warning(f"Konfigurierter Tesseract-Pfad existiert nicht: {clean_path}")
+            logger.warning("Versuche automatische Suche...")
+    
+    # Auf Windows: Automatisch in Standard-Pfaden suchen
+    if platform.system() == 'Windows':
         found_path = _find_tesseract_windows()
         if found_path:
             pytesseract.pytesseract.tesseract_cmd = found_path
             logger.info(f"Tesseract automatisch gefunden: {found_path}")
         else:
             logger.warning("Tesseract nicht in Standard-Pfaden gefunden.")
-            logger.warning("Bitte 'install_tesseract.bat' ausführen oder Pfad in Config setzen.")
+            logger.warning("Bitte 'install_tesseract.bat' ausführen.")
 
 
 def test_tesseract() -> bool:
     """
     Prüft, ob Tesseract verfügbar ist.
+    Versucht automatische Erkennung auf Windows falls nicht konfiguriert.
     
     Returns:
         True wenn Tesseract funktioniert, sonst False
     """
     import platform
+    
+    # Auf Windows: Zuerst automatische Suche versuchen falls nicht gesetzt
+    if platform.system() == 'Windows':
+        current_cmd = getattr(pytesseract.pytesseract, 'tesseract_cmd', 'tesseract')
+        if current_cmd == 'tesseract':  # Standard-Wert, nicht konfiguriert
+            found_path = _find_tesseract_windows()
+            if found_path:
+                pytesseract.pytesseract.tesseract_cmd = found_path
+                logger.info(f"Tesseract automatisch gefunden: {found_path}")
     
     try:
         version = pytesseract.get_tesseract_version()
@@ -104,11 +124,11 @@ def test_tesseract() -> bool:
             logger.error("  2. Lade Tesseract manuell herunter:")
             logger.error("     https://github.com/UB-Mannheim/tesseract/wiki")
             logger.error("")
-            logger.error("  Nach der Installation:")
-            logger.error("  - Füge in .archiv_config.json hinzu:")
-            logger.error('    "tesseract_cmd": "C:\\\\Program Files\\\\Tesseract-OCR\\\\tesseract.exe"')
+            logger.error("  Gepruefte Pfade:")
+            logger.error("  - C:\\Program Files\\Tesseract-OCR\\tesseract.exe")
+            logger.error("  - C:\\Program Files (x86)\\Tesseract-OCR\\tesseract.exe")
             logger.error("")
-            logger.error("  WICHTIG: Bei der Installation 'German' als Sprache auswählen!")
+            logger.error("  WICHTIG: Bei der Installation 'German' als Sprache auswaehlen!")
         elif platform.system() == 'Darwin':
             logger.error("")
             logger.error("  LÖSUNG FÜR macOS:")
