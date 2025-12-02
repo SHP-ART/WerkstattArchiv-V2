@@ -436,6 +436,228 @@ def test_tesseract_api():
         }), 500
 
 
+@app.route('/api/tesseract/install', methods=['POST'])
+def install_tesseract_api():
+    """API: Tesseract OCR installieren (nur Windows mit winget)"""
+    try:
+        import platform
+        import subprocess
+        
+        result = {
+            'success': False,
+            'message': '',
+            'output': [],
+            'platform': platform.system()
+        }
+        
+        if platform.system() != 'Windows':
+            result['message'] = 'Automatische Installation nur auf Windows verfügbar'
+            result['output'].append(f"Betriebssystem: {platform.system()}")
+            result['output'].append("")
+            if platform.system() == 'Darwin':
+                result['output'].append("INSTALLATION AUF macOS:")
+                result['output'].append("Öffne Terminal und führe aus:")
+                result['output'].append("  brew install tesseract tesseract-lang")
+            else:
+                result['output'].append("INSTALLATION AUF LINUX:")
+                result['output'].append("Öffne Terminal und führe aus:")
+                result['output'].append("  sudo apt-get install tesseract-ocr tesseract-ocr-deu")
+            return jsonify(result)
+        
+        # Prüfe ob winget verfügbar ist
+        result['output'].append("Prüfe ob winget verfügbar ist...")
+        try:
+            winget_check = subprocess.run(
+                ['where', 'winget'], 
+                capture_output=True, 
+                text=True, 
+                timeout=10
+            )
+            if winget_check.returncode != 0:
+                result['message'] = 'winget nicht gefunden'
+                result['output'].append("FEHLER: winget ist nicht verfügbar.")
+                result['output'].append("")
+                result['output'].append("ALTERNATIVE:")
+                result['output'].append("1. Lade Tesseract manuell herunter:")
+                result['output'].append("   https://github.com/UB-Mannheim/tesseract/wiki")
+                result['output'].append("2. Installiere die .exe Datei")
+                result['output'].append("3. Wähle 'German' als Sprache bei der Installation!")
+                return jsonify(result)
+        except Exception as e:
+            result['message'] = f'Fehler bei winget-Prüfung: {e}'
+            result['output'].append(f"FEHLER: {e}")
+            return jsonify(result)
+        
+        result['output'].append("winget gefunden! Starte Installation...")
+        result['output'].append("")
+        result['output'].append("Führe aus: winget install UB-Mannheim.TesseractOCR")
+        result['output'].append("(Dies kann einige Minuten dauern...)")
+        result['output'].append("")
+        
+        # Tesseract installieren
+        try:
+            install_process = subprocess.run(
+                ['winget', 'install', '-e', '--id', 'UB-Mannheim.TesseractOCR', 
+                 '--accept-package-agreements', '--accept-source-agreements'],
+                capture_output=True,
+                text=True,
+                timeout=300  # 5 Minuten Timeout
+            )
+            
+            # Output hinzufügen
+            if install_process.stdout:
+                for line in install_process.stdout.split('\n'):
+                    if line.strip():
+                        result['output'].append(line.strip())
+            
+            if install_process.stderr:
+                for line in install_process.stderr.split('\n'):
+                    if line.strip():
+                        result['output'].append(f"STDERR: {line.strip()}")
+            
+            result['output'].append("")
+            
+            if install_process.returncode == 0:
+                result['success'] = True
+                result['message'] = 'Tesseract wurde erfolgreich installiert!'
+                result['output'].append("✓ Installation erfolgreich!")
+                result['output'].append("")
+                result['output'].append("NÄCHSTE SCHRITTE:")
+                result['output'].append("1. Klicke auf 'Tesseract testen' um die Installation zu prüfen")
+                result['output'].append("2. Falls der Test fehlschlägt, starte den Server neu")
+            else:
+                # Auch bei returncode != 0 könnte es schon installiert sein
+                result['output'].append(f"Exit-Code: {install_process.returncode}")
+                
+                # Prüfe ob Tesseract jetzt existiert
+                tess_paths = [
+                    Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe"),
+                    Path(r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe")
+                ]
+                
+                for p in tess_paths:
+                    if p.exists():
+                        result['success'] = True
+                        result['message'] = 'Tesseract ist installiert (möglicherweise war es bereits vorhanden)'
+                        result['output'].append("")
+                        result['output'].append(f"✓ Tesseract gefunden: {p}")
+                        break
+                
+                if not result['success']:
+                    result['message'] = 'Installation möglicherweise fehlgeschlagen'
+                    result['output'].append("")
+                    result['output'].append("Die Installation scheint nicht erfolgreich gewesen zu sein.")
+                    result['output'].append("Bitte versuche eine manuelle Installation:")
+                    result['output'].append("https://github.com/UB-Mannheim/tesseract/wiki")
+                    
+        except subprocess.TimeoutExpired:
+            result['message'] = 'Installation-Timeout (5 Minuten überschritten)'
+            result['output'].append("FEHLER: Timeout - Installation dauerte zu lange.")
+            result['output'].append("Die Installation läuft möglicherweise noch im Hintergrund.")
+            result['output'].append("Warte einige Minuten und teste dann erneut.")
+            
+        except Exception as e:
+            result['message'] = f'Installationsfehler: {e}'
+            result['output'].append(f"FEHLER: {e}")
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Fehler bei Tesseract-Installation: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e),
+            'output': [f"Schwerer Fehler: {e}"]
+        }), 500
+
+
+@app.route('/api/tesseract/install-german', methods=['POST'])
+def install_tesseract_german_api():
+    """API: Deutsche Sprachdatei für Tesseract herunterladen"""
+    try:
+        import platform
+        import urllib.request
+        
+        result = {
+            'success': False,
+            'message': '',
+            'output': []
+        }
+        
+        # Finde tessdata Ordner
+        tessdata_paths = [
+            Path(r"C:\Program Files\Tesseract-OCR\tessdata"),
+            Path(r"C:\Program Files (x86)\Tesseract-OCR\tessdata"),
+            Path("/usr/local/share/tessdata"),
+            Path("/usr/share/tesseract-ocr/4.00/tessdata"),
+            Path("/opt/homebrew/share/tessdata"),
+        ]
+        
+        tessdata_dir = None
+        for p in tessdata_paths:
+            if p.exists():
+                tessdata_dir = p
+                break
+        
+        if not tessdata_dir:
+            result['message'] = 'Tessdata-Ordner nicht gefunden'
+            result['output'].append("FEHLER: Konnte tessdata-Ordner nicht finden.")
+            result['output'].append("Tesseract muss zuerst installiert werden.")
+            return jsonify(result)
+        
+        result['output'].append(f"Tessdata-Ordner: {tessdata_dir}")
+        
+        deu_file = tessdata_dir / "deu.traineddata"
+        
+        if deu_file.exists():
+            result['success'] = True
+            result['message'] = 'Deutsche Sprachdatei ist bereits installiert'
+            result['output'].append("✓ deu.traineddata ist bereits vorhanden!")
+            return jsonify(result)
+        
+        result['output'].append("Lade deu.traineddata herunter...")
+        result['output'].append("Quelle: github.com/tesseract-ocr/tessdata")
+        
+        url = "https://github.com/tesseract-ocr/tessdata/raw/main/deu.traineddata"
+        
+        try:
+            urllib.request.urlretrieve(url, str(deu_file))
+            
+            if deu_file.exists():
+                result['success'] = True
+                result['message'] = 'Deutsche Sprachdatei erfolgreich installiert!'
+                result['output'].append("")
+                result['output'].append("✓ Download erfolgreich!")
+                result['output'].append(f"Gespeichert: {deu_file}")
+            else:
+                result['message'] = 'Download fehlgeschlagen'
+                result['output'].append("FEHLER: Datei wurde nicht erstellt.")
+                
+        except PermissionError:
+            result['message'] = 'Keine Schreibberechtigung'
+            result['output'].append("")
+            result['output'].append("FEHLER: Keine Berechtigung zum Schreiben!")
+            result['output'].append("Versuche den Server als Administrator zu starten.")
+            result['output'].append("")
+            result['output'].append("ALTERNATIVE: Manueller Download:")
+            result['output'].append(f"1. Lade herunter: {url}")
+            result['output'].append(f"2. Speichere als: {deu_file}")
+            
+        except Exception as e:
+            result['message'] = f'Download-Fehler: {e}'
+            result['output'].append(f"FEHLER: {e}")
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Fehler beim Herunterladen der Sprachdatei: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e),
+            'output': [f"Fehler: {e}"]
+        }), 500
+
+
 @app.route('/api/system-info', methods=['GET'])
 def get_system_info():
     """API: System-Informationen abrufen"""
