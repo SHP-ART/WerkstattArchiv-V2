@@ -333,6 +333,109 @@ def validate_settings():
         return jsonify({'error': str(e)}), 400
 
 
+@app.route('/api/tesseract/test', methods=['GET'])
+def test_tesseract_api():
+    """API: Tesseract OCR testen"""
+    try:
+        import platform
+        
+        result = {
+            'installed': False,
+            'version': None,
+            'path': None,
+            'german_available': False,
+            'test_successful': False,
+            'error': None,
+            'details': []
+        }
+        
+        # Tesseract-Pfad ermitteln
+        c = get_config()
+        tesseract_cmd = c.get('tesseract_cmd')
+        
+        # Setup aufrufen (findet Tesseract automatisch auf Windows)
+        ocr.setup_tesseract(tesseract_cmd)
+        
+        # Aktuellen Pfad ermitteln
+        current_cmd = getattr(ocr.pytesseract.pytesseract, 'tesseract_cmd', 'tesseract')
+        result['path'] = current_cmd
+        result['details'].append(f"Tesseract-Pfad: {current_cmd}")
+        
+        # Version testen
+        try:
+            version = ocr.pytesseract.get_tesseract_version()
+            result['installed'] = True
+            result['version'] = str(version)
+            result['details'].append(f"Version: {version}")
+        except Exception as e:
+            result['error'] = f"Tesseract nicht gefunden: {e}"
+            result['details'].append(f"FEHLER: {e}")
+            
+            # Hilfreiche Hinweise je nach OS
+            if platform.system() == 'Windows':
+                result['details'].append("")
+                result['details'].append("LÖSUNG FÜR WINDOWS:")
+                result['details'].append("1. Führe 'install_tesseract.bat' aus")
+                result['details'].append("2. Oder lade Tesseract manuell herunter:")
+                result['details'].append("   https://github.com/UB-Mannheim/tesseract/wiki")
+            elif platform.system() == 'Darwin':
+                result['details'].append("")
+                result['details'].append("LÖSUNG FÜR macOS:")
+                result['details'].append("brew install tesseract tesseract-lang")
+            else:
+                result['details'].append("")
+                result['details'].append("LÖSUNG FÜR LINUX:")
+                result['details'].append("sudo apt-get install tesseract-ocr tesseract-ocr-deu")
+            
+            return jsonify(result)
+        
+        # Deutsche Sprache prüfen
+        try:
+            langs = ocr.pytesseract.get_languages()
+            if 'deu' in langs:
+                result['german_available'] = True
+                result['details'].append("Deutsche Sprache: Verfügbar ✓")
+            else:
+                result['details'].append("Deutsche Sprache: NICHT installiert!")
+                result['details'].append(f"Verfügbare Sprachen: {', '.join(langs)}")
+        except Exception as e:
+            result['details'].append(f"Sprachprüfung fehlgeschlagen: {e}")
+        
+        # Echten OCR-Test durchführen mit einem Test-Bild
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+            import io
+            
+            # Erstelle ein Test-Bild mit Text
+            img = Image.new('RGB', (300, 50), color='white')
+            draw = ImageDraw.Draw(img)
+            draw.text((10, 10), "Test 12345 OCR", fill='black')
+            
+            # OCR durchführen
+            text = ocr.pytesseract.image_to_string(img, lang='deu')
+            
+            if 'Test' in text or '12345' in text or 'OCR' in text:
+                result['test_successful'] = True
+                result['details'].append(f"OCR-Test: Erfolgreich ✓")
+                result['details'].append(f"Erkannter Text: '{text.strip()}'")
+            else:
+                result['details'].append(f"OCR-Test: Text nicht korrekt erkannt")
+                result['details'].append(f"Erkannter Text: '{text.strip()}'")
+                
+        except Exception as e:
+            result['details'].append(f"OCR-Test fehlgeschlagen: {e}")
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Fehler beim Tesseract-Test: {e}")
+        return jsonify({
+            'installed': False,
+            'error': str(e),
+            'details': [f"Fehler: {e}"]
+        }), 500
+
+
 @app.route('/api/system-info', methods=['GET'])
 def get_system_info():
     """API: System-Informationen abrufen"""
