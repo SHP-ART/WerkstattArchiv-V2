@@ -61,6 +61,9 @@ def setup_tesseract(tesseract_cmd: Optional[str] = None) -> None:
         tesseract_cmd: Pfad zur tesseract.exe (Windows) oder None für Auto-Detection
     """
     import platform
+    import os
+    
+    tesseract_path = None
     
     # Wenn ein Pfad angegeben wurde, prüfe ob er existiert
     if tesseract_cmd:
@@ -68,20 +71,32 @@ def setup_tesseract(tesseract_cmd: Optional[str] = None) -> None:
         clean_path = str(Path(tesseract_cmd))
         
         if Path(clean_path).exists():
-            pytesseract.pytesseract.tesseract_cmd = clean_path
-            logger.info(f"Tesseract-Pfad gesetzt: {clean_path}")
-            return
+            tesseract_path = clean_path
         else:
             logger.warning(f"Konfigurierter Tesseract-Pfad existiert nicht: {clean_path}")
             logger.warning("Versuche automatische Suche...")
     
     # Auf Windows: Automatisch in Standard-Pfaden suchen
-    if platform.system() == 'Windows':
-        found_path = _find_tesseract_windows()
-        if found_path:
-            pytesseract.pytesseract.tesseract_cmd = found_path
-            logger.info(f"Tesseract automatisch gefunden: {found_path}")
-        else:
+    if not tesseract_path and platform.system() == 'Windows':
+        tesseract_path = _find_tesseract_windows()
+    
+    # Pfad setzen und TESSDATA_PREFIX konfigurieren
+    if tesseract_path:
+        pytesseract.pytesseract.tesseract_cmd = tesseract_path
+        logger.info(f"Tesseract-Pfad gesetzt: {tesseract_path}")
+        
+        # WICHTIG: Setze TESSDATA_PREFIX für Windows
+        # Dies verhindert den "mixed slashes" Fehler
+        if platform.system() == 'Windows':
+            tesseract_dir = Path(tesseract_path).parent
+            tessdata_dir = tesseract_dir / "tessdata"
+            if tessdata_dir.exists():
+                # Verwende Windows-Pfad mit Backslashes
+                tessdata_str = str(tessdata_dir)
+                os.environ['TESSDATA_PREFIX'] = tessdata_str
+                logger.info(f"TESSDATA_PREFIX gesetzt: {tessdata_str}")
+    else:
+        if platform.system() == 'Windows':
             logger.warning("Tesseract nicht in Standard-Pfaden gefunden.")
             logger.warning("Bitte 'install_tesseract.bat' ausführen.")
 
