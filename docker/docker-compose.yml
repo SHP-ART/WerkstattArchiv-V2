@@ -1,0 +1,78 @@
+# Werkstatt-Archiv Docker Compose
+# Einfaches Starten mit: docker-compose up -d
+
+version: '3.8'
+
+services:
+  werkstatt-archiv:
+    build:
+      context: ..              # Elternverzeichnis (Projekt-Root)
+      dockerfile: docker/Dockerfile
+    container_name: werkstatt-archiv
+    restart: unless-stopped
+    
+    # ============================================================
+    # NETZWERK: Zugriff von allen Rechnern im LAN
+    # ============================================================
+    ports:
+      - "0.0.0.0:8080:8080"  # Erreichbar unter http://<SERVER-IP>:8080
+    
+    volumes:
+      # ============================================================
+      # PERSISTENTE DATEN (werden NICHT gelöscht beim Neustart)
+      # ============================================================
+      
+      # Konfiguration (im Projekt-Root)
+      - ../.archiv_config.json:/app/.archiv_config.json
+      
+      # Logs
+      - ../logs:/app/logs
+      
+      # ============================================================
+      # DATENBANK - Wichtig für Persistenz!
+      # Die DB wird im Archiv-Ordner gespeichert
+      # ============================================================
+      
+      # ============================================================
+      # WICHTIG: Passen Sie diese Pfade an Ihre Umgebung an!
+      # ============================================================
+      
+      # Windows-Beispiel (Netzlaufwerk als Laufwerksbuchstabe):
+      # - Z:/Werkstatt/Archiv:/data/archiv
+      # - Z:/Werkstatt/Eingang:/data/eingang
+      # - Z:/Werkstatt/Backup:/data/backup
+      
+      # Windows-Beispiel (UNC-Pfad - funktioniert NICHT direkt!):
+      # Nutzen Sie stattdessen ein gemapptes Laufwerk
+      
+      # macOS/Linux-Beispiel:
+      # - /Volumes/Server/Archiv:/data/archiv
+      # - /Volumes/Server/Eingang:/data/eingang
+      # - /Volumes/Server/Backup:/data/backup
+      
+      # ============================================================
+      # LOKALE TEST-ORDNER (Standard für Entwicklung):
+      # ============================================================
+      - ../test_archiv:/data/archiv
+      - ../test_input:/data/eingang
+      - ../test_backup:/data/backup
+    
+    environment:
+      # Zeitzone
+      - TZ=Europe/Berlin
+      
+      # Log-Level (DEBUG, INFO, WARNING, ERROR)
+      - LOG_LEVEL=INFO
+    
+    # Ressourcen-Limits (optional)
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+
+# Netzwerk (optional, für Kommunikation mit anderen Containern)
+networks:
+  default:
+    name: werkstatt-network

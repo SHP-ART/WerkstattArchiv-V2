@@ -1,0 +1,54 @@
+# Git
+.git/
+.gitignore
+.github/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Lokale Daten (werden als Volumes gemountet)
+test_archiv/
+test_input/
+test_backup/
+archiv/
+Archiv/
+*.db
+*.db-journal
+kunden_index.csv
+
+# Logs
+*.log
+logs/
+nohup.out
+
+# Backups
+*.zip
+backups/
+
+# Dokumentation (nicht im Container benötigt)
+*.md
+!README.md
+Logo/
+.claude/
+
+# Windows Batch-Dateien
+*.bat
+
+# macOS
+.DS_Store
+*.command
+
+# Shell-Scripts (nicht im Container benötigt)
+*.sh
