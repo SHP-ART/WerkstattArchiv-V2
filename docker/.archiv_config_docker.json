@@ -1,0 +1,16 @@
+{
+    "input_folder": "/data/eingang",
+    "archiv_root": "/data/archiv",
+    "db_path": "/data/archiv/werkstatt_copy.db",
+    "backup_target_dir": "/data/backup",
+    "auftragsnummer_pad_length": 6,
+    "use_thousand_blocks": false,
+    "use_year_folders": true,
+    "dateiname_pattern": "{auftrag_nr}_{kennzeichen}_{name}_{datum}{version_suffix}.pdf",
+    "max_pages_to_ocr": 10,
+    "auto_backup_interval_hours": 24,
+    "kunden_index_file": "kunden_index.csv",
+    "tesseract_cmd": null,
+    "tesseract_lang": "deu",
+    "keywords": ["Garantie", "Kulanz", "Diagnose", "Fehlerspeicher", "Bremse", "Inspektion", "Wartung", "TÜV", "HU"]
+}

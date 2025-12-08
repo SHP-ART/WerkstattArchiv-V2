@@ -519,18 +519,58 @@
         })
         .then(data => {
             if (data.success) {
-                // Kurzes visuelles Feedback
-                const toast = document.createElement('div');
-                toast.className = 'position-fixed top-0 end-0 p-3';
-                toast.style.zIndex = '9999';
-                toast.innerHTML = `
-                    <div class="alert alert-success alert-dismissible fade show" role="alert">
-                        <i class="bi bi-folder2-open"></i> Eingangsordner geöffnet
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                `;
-                document.body.appendChild(toast);
-                setTimeout(() => toast.remove(), 3000);
+                // Prüfe ob Netzwerkpfad zurückgegeben wurde (Docker/Remote)
+                if (data.mode === 'network_path') {
+                    // Zeige Dialog mit kopierbarem Pfad
+                    const modal = document.createElement('div');
+                    modal.className = 'modal fade show';
+                    modal.style.display = 'block';
+                    modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
+                    modal.innerHTML = `
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title"><i class="bi bi-folder2-open"></i> Eingangsordner öffnen</h5>
+                                    <button type="button" class="btn-close" onclick="this.closest('.modal').remove()"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p>Kopiere diesen Pfad und füge ihn in die Explorer-Adressleiste ein:</p>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control font-monospace" value="${data.network_path}" id="network-path-input" readonly>
+                                        <button class="btn btn-primary" onclick="copyNetworkPath()">
+                                            <i class="bi bi-clipboard"></i> Kopieren
+                                        </button>
+                                    </div>
+                                    <small class="text-muted mt-2 d-block">
+                                        <i class="bi bi-info-circle"></i> Drücke Win+E für Explorer, dann Strg+L und füge den Pfad ein.
+                                    </small>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" onclick="this.closest('.modal').remove()">Schließen</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    document.body.appendChild(modal);
+                    
+                    // Pfad automatisch markieren
+                    setTimeout(() => {
+                        document.getElementById('network-path-input').select();
+                    }, 100);
+                } else {
+                    // Lokaler Zugriff - Finder/Explorer wurde geöffnet
+                    const toast = document.createElement('div');
+                    toast.className = 'position-fixed top-0 end-0 p-3';
+                    toast.style.zIndex = '9999';
+                    toast.innerHTML = `
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                            <i class="bi bi-folder2-open"></i> Eingangsordner geöffnet
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    `;
+                    document.body.appendChild(toast);
+                    setTimeout(() => toast.remove(), 3000);
+                }
             } else {
                 alert(`Fehler: ${data.error}`);
             }
@@ -617,18 +657,58 @@
         })
         .then(data => {
             if (data.success) {
-                // Kurzes visuelles Feedback
-                const toast = document.createElement('div');
-                toast.className = 'position-fixed top-0 end-0 p-3';
-                toast.style.zIndex = '9999';
-                toast.innerHTML = `
-                    <div class="alert alert-info alert-dismissible fade show" role="alert">
-                        <i class="bi bi-folder2-open"></i> Finder/Explorer geöffnet
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                `;
-                document.body.appendChild(toast);
-                setTimeout(() => toast.remove(), 3000);
+                // Prüfe ob Netzwerkpfad zurückgegeben wurde (Docker/Remote)
+                if (data.mode === 'network_path') {
+                    // Zeige Dialog mit kopierbarem Pfad
+                    const modal = document.createElement('div');
+                    modal.className = 'modal fade show';
+                    modal.style.display = 'block';
+                    modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
+                    modal.innerHTML = `
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title"><i class="bi bi-folder2-open"></i> Ordner im Explorer öffnen</h5>
+                                    <button type="button" class="btn-close" onclick="this.closest('.modal').remove()"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p>Kopiere diesen Pfad und füge ihn in die Explorer-Adressleiste ein:</p>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control font-monospace" value="${data.network_path}" id="network-path-input" readonly>
+                                        <button class="btn btn-primary" onclick="copyNetworkPath()">
+                                            <i class="bi bi-clipboard"></i> Kopieren
+                                        </button>
+                                    </div>
+                                    <small class="text-muted mt-2 d-block">
+                                        <i class="bi bi-info-circle"></i> Drücke Win+E für Explorer, dann Strg+L und füge den Pfad ein.
+                                    </small>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" onclick="this.closest('.modal').remove()">Schließen</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    document.body.appendChild(modal);
+                    
+                    // Pfad automatisch markieren
+                    setTimeout(() => {
+                        document.getElementById('network-path-input').select();
+                    }, 100);
+                } else {
+                    // Lokaler Zugriff - Finder/Explorer wurde geöffnet
+                    const toast = document.createElement('div');
+                    toast.className = 'position-fixed top-0 end-0 p-3';
+                    toast.style.zIndex = '9999';
+                    toast.innerHTML = `
+                        <div class="alert alert-info alert-dismissible fade show" role="alert">
+                            <i class="bi bi-folder2-open"></i> Finder/Explorer geöffnet
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    `;
+                    document.body.appendChild(toast);
+                    setTimeout(() => toast.remove(), 3000);
+                }
             } else {
                 alert(`Fehler: ${data.error}`);
             }
@@ -636,6 +716,23 @@
         .catch(error => {
             console.error('Fehler beim Öffnen:', error);
             alert(`Fehler beim Öffnen: ${error.message}`);
+        });
+    }
+    
+    // Hilfsfunktion zum Kopieren des Netzwerkpfads
+    function copyNetworkPath() {
+        const input = document.getElementById('network-path-input');
+        input.select();
+        navigator.clipboard.writeText(input.value).then(() => {
+            const btn = input.nextElementSibling;
+            btn.innerHTML = '<i class="bi bi-check"></i> Kopiert!';
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-success');
+            setTimeout(() => {
+                btn.innerHTML = '<i class="bi bi-clipboard"></i> Kopieren';
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-primary');
+            }, 2000);
         });
     }
 

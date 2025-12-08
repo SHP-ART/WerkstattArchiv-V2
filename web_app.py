@@ -996,9 +996,10 @@ def download_pdf(auftrag_id):
 
 @app.route('/api/archive/reveal/<int:auftrag_id>')
 def reveal_in_finder(auftrag_id):
-    """API: Datei im Finder/Explorer zeigen"""
+    """API: Datei im Finder/Explorer zeigen oder Netzwerkpfad zurückgeben"""
     import subprocess
     import platform
+    import os
     
     try:
         c = get_config()
@@ -1014,6 +1015,48 @@ def reveal_in_finder(auftrag_id):
             return jsonify({'success': False, 'error': 'Auftrag nicht gefunden'}), 404
         
         file_path = Path(row[0])
+        
+        # Prüfe ob in Docker-Container
+        in_docker = os.path.exists('/.dockerenv') or os.environ.get('DOCKER_CONTAINER', False)
+        
+        # Prüfe ob Netzwerkpfad konfiguriert ist (für Docker/Remote-Zugriff)
+        network_archiv_path = c.config.get('network_archiv_path', '')
+        if network_archiv_path:
+            # Ersetze lokalen Archiv-Pfad durch Netzwerkpfad
+            archiv_root = str(c.get_archiv_root())
+            local_path = str(file_path)
+            
+            # Konvertiere zu Windows-Pfad für UNC
+            if local_path.startswith(archiv_root):
+                relative_path = local_path[len(archiv_root):].lstrip('/\\')
+                network_path = network_archiv_path.rstrip('/\\') + '\\' + relative_path.replace('/', '\\')
+                
+                return jsonify({
+                    'success': True, 
+                    'mode': 'network_path',
+                    'network_path': network_path,
+                    'message': f'Pfad zum Kopieren: {network_path}'
+                })
+            # Für Docker: /data/archiv ersetzen
+            elif local_path.startswith('/data/archiv'):
+                relative_path = local_path[len('/data/archiv'):].lstrip('/\\')
+                network_path = network_archiv_path.rstrip('/\\') + '\\' + relative_path.replace('/', '\\')
+                
+                return jsonify({
+                    'success': True,
+                    'mode': 'network_path', 
+                    'network_path': network_path,
+                    'message': f'Pfad zum Kopieren: {network_path}'
+                })
+        
+        # Im Docker-Container ohne Netzwerkpfad: Zeige Container-Pfad
+        if in_docker:
+            return jsonify({
+                'success': True,
+                'mode': 'network_path',
+                'network_path': str(file_path),
+                'message': f'Container-Pfad: {file_path} (Konfigurieren Sie network_archiv_path für den echten Netzwerkpfad)'
+            })
         
         if not file_path.exists():
             return jsonify({'success': False, 'error': 'Datei nicht gefunden'}), 404
@@ -1062,13 +1105,36 @@ def reveal_in_finder(auftrag_id):
 
 @app.route('/api/folder/open-input')
 def open_input_folder():
-    """API: Eingangsordner im Finder/Explorer öffnen"""
+    """API: Eingangsordner im Finder/Explorer öffnen oder Netzwerkpfad zurückgeben"""
     import subprocess
     import platform
+    import os
     
     try:
         c = get_config()
         input_folder = c.get_input_folder()
+        
+        # Prüfe ob in Docker-Container (/.dockerenv existiert)
+        in_docker = os.path.exists('/.dockerenv') or os.environ.get('DOCKER_CONTAINER', False)
+        
+        # Prüfe ob Netzwerkpfad konfiguriert ist (für Docker/Remote-Zugriff)
+        network_input_path = c.config.get('network_input_path', '')
+        if network_input_path:
+            return jsonify({
+                'success': True,
+                'mode': 'network_path',
+                'network_path': network_input_path,
+                'message': f'Pfad zum Kopieren: {network_input_path}'
+            })
+        
+        # Im Docker-Container ohne Netzwerkpfad: Zeige Container-Pfad
+        if in_docker:
+            return jsonify({
+                'success': True,
+                'mode': 'network_path',
+                'network_path': str(input_folder),
+                'message': f'Container-Pfad: {input_folder} (Konfigurieren Sie network_input_path für den echten Netzwerkpfad)'
+            })
         
         if not input_folder.exists():
             return jsonify({'success': False, 'error': 'Eingangsordner nicht gefunden'}), 404

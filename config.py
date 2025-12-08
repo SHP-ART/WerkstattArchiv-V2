@@ -20,6 +20,13 @@ DEFAULT_CONFIG = {
     "archiv_root": "",  # Muss vom Benutzer gesetzt werden
     "db_path": "",  # Wird automatisch auf archiv_root/werkstatt.db gesetzt
     "backup_target_dir": "",  # Optional, muss gesetzt werden wenn Backups gewünscht
+    
+    # Netzwerkpfade für "Ordner öffnen" auf Remote-PCs (Docker/Server)
+    # Wenn gesetzt, wird dieser Pfad anstelle des lokalen Pfads angezeigt
+    # Beispiel: "\\\\Server\\Kundenordner" (doppelte Backslashes in JSON!)
+    "network_archiv_path": "",  # z.B. "\\\\Server\\Werkstatt\\Archiv"
+    "network_input_path": "",   # z.B. "\\\\Server\\Werkstatt\\Eingang"
+    
     "auftragsnummer_pad_length": 6,
     "use_year_folders": True,  # NEU: Jahr-basierte Ordner (z.B. 2024/076329/)
     "use_thousand_blocks": False,  # ALT: Tausender-Blöcke (z.B. 070000-079999/076329/)

@@ -10,6 +10,35 @@ echo Werkstatt-Archiv Docker Starter
 echo ========================================
 echo.
 
+:: ============================================================
+:: NETZLAUFWERK AUTOMATISCH VERBINDEN
+:: ============================================================
+:: ANPASSEN: Dein Server-Pfad hier eintragen!
+set "SERVER_PATH=\\Server\Kundenordner"
+set "DRIVE_LETTER=W:"
+
+:: Prüfe ob Laufwerk bereits verbunden
+if exist "%DRIVE_LETTER%\" (
+    echo [OK] Netzlaufwerk %DRIVE_LETTER% bereits verbunden
+) else (
+    echo Verbinde Netzlaufwerk %DRIVE_LETTER% mit %SERVER_PATH%...
+    net use %DRIVE_LETTER% "%SERVER_PATH%" /persistent:no >nul 2>&1
+    if !ERRORLEVEL! equ 0 (
+        echo [OK] Netzlaufwerk verbunden
+    ) else (
+        echo [FEHLER] Konnte Netzlaufwerk nicht verbinden!
+        echo.
+        echo Bitte prüfen Sie:
+        echo   1. Ist der Server erreichbar? 
+        echo   2. Stimmt der Pfad? %SERVER_PATH%
+        echo   3. Haben Sie Zugriff auf die Freigabe?
+        echo.
+        pause
+        exit /b 1
+    )
+)
+echo.
+
 :: Prüfe ob Docker läuft
 docker info >nul 2>&1
 if %ERRORLEVEL% neq 0 (
