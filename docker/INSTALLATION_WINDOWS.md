@@ -74,27 +74,21 @@ Diese Anleitung erklärt Schritt für Schritt, wie Sie das Werkstatt-Archiv mit 
    ```
    Wenn keine Fehlermeldung kommt, ist Docker bereit.
 
-### Schritt 2: Container bauen und starten
+### Schritt 2: Installation und Start (Automatisch)
 
-1. **Eingabeaufforderung öffnen**
+Wir haben ein Script vorbereitet, das die Installation für Sie übernimmt.
 
-2. **In den Docker-Ordner wechseln**
-   ```cmd
-   cd %USERPROFILE%\Documents\WerkstattArchiv-V2\docker
-   ```
+1. Öffnen Sie den Ordner `docker` im Explorer:
+   `Dokumente\WerkstattArchiv-V2\docker`
 
-3. **Container bauen und starten**
-   ```cmd
-   docker-compose up -d --build
-   ```
-   
-   Beim ersten Mal dauert dies 2-5 Minuten (Downloads + Build).
+2. Doppelklicken Sie auf **`docker_install.bat`**
 
-4. **Prüfen ob Container läuft**
-   ```cmd
-   docker ps
-   ```
-   Sie sollten `werkstatt-archiv` in der Liste sehen.
+3. Das Script wird:
+   - Prüfen, ob Docker läuft
+   - Die Container erstellen (Build)
+   - Das System starten
+
+**Hinweis:** Beim ersten Mal kann dies einige Minuten dauern, da alle Komponenten heruntergeladen werden müssen.
 
 ### Schritt 3: Web-UI öffnen
 
