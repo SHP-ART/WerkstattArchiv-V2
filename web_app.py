@@ -664,25 +664,78 @@ def get_system_info():
     try:
         import sys
         import subprocess
+        import socket
         
         # Python-Version
         python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
         
+        # Lokale IP-Adresse(n) ermitteln
+        local_ips = []
+        hostname = socket.gethostname()
+        
+        try:
+            # Primäre IP-Adresse
+            local_ip = socket.gethostbyname(hostname)
+            if local_ip and local_ip != '127.0.0.1':
+                local_ips.append(local_ip)
+            
+            # Alle Netzwerk-Interfaces (detaillierter)
+            import platform
+            if platform.system() == 'Windows':
+                # Windows: ipconfig
+                result = subprocess.run(['ipconfig'], capture_output=True, text=True, timeout=2)
+                if result.returncode == 0:
+                    for line in result.stdout.split('\n'):
+                        if 'IPv4' in line and ':' in line:
+                            ip = line.split(':')[-1].strip()
+                            if ip and ip not in local_ips and not ip.startswith('127.'):
+                                local_ips.append(ip)
+            else:
+                # Linux/Mac: ip addr oder ifconfig
+                try:
+                    result = subprocess.run(['ip', 'addr'], capture_output=True, text=True, timeout=2)
+                    output = result.stdout
+                except:
+                    result = subprocess.run(['ifconfig'], capture_output=True, text=True, timeout=2)
+                    output = result.stdout
+                
+                import re
+                ips = re.findall(r'inet (\d+\.\d+\.\d+\.\d+)', output)
+                for ip in ips:
+                    if ip not in local_ips and not ip.startswith('127.'):
+                        local_ips.append(ip)
+        except Exception as e:
+            logger.debug(f"Fehler beim Ermitteln der IP-Adressen: {e}")
+        
+        # Fallback wenn keine IP gefunden
+        if not local_ips:
+            local_ips = ['127.0.0.1']
+        
         # Tesseract-Version
         tesseract_version = "Nicht installiert"
         try:
-            result = subprocess.run(['tesseract', '--version'], 
+            # Versuche Tesseract über ocr.py zu finden
+            import ocr
+            if hasattr(ocr.pytesseract.pytesseract, 'tesseract_cmd') and ocr.pytesseract.pytesseract.tesseract_cmd:
+                tesseract_cmd = ocr.pytesseract.pytesseract.tesseract_cmd
+            else:
+                tesseract_cmd = 'tesseract'
+            
+            result = subprocess.run([tesseract_cmd, '--version'], 
                                     capture_output=True, text=True, timeout=2)
             if result.returncode == 0:
                 # Extrahiere Version aus erster Zeile (z.B. "tesseract 5.3.0")
                 first_line = result.stdout.split('\n')[0]
                 tesseract_version = first_line.strip()
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Tesseract-Version konnte nicht ermittelt werden: {e}")
         
         return jsonify({
             'python_version': python_version,
-            'tesseract_version': tesseract_version
+            'tesseract_version': tesseract_version,
+            'hostname': hostname,
+            'local_ips': local_ips,
+            'primary_ip': local_ips[0] if local_ips else '127.0.0.1'
         })
         
     except Exception as e:
@@ -1112,7 +1165,16 @@ def open_input_folder():
     
     try:
         c = get_config()
-        input_folder = c.get_input_folder()
+        
+        # Prüfe ob input_folder konfiguriert ist
+        input_folder_str = c.config.get('input_folder', '')
+        if not input_folder_str:
+            return jsonify({
+                'success': False, 
+                'error': 'Eingangsordner ist nicht konfiguriert. Bitte in den Einstellungen festlegen.'
+            }), 400
+        
+        input_folder = Path(input_folder_str)
         
         # Prüfe ob in Docker-Container (/.dockerenv existiert)
         in_docker = os.path.exists('/.dockerenv') or os.environ.get('DOCKER_CONTAINER', False)
@@ -1143,17 +1205,20 @@ def open_input_folder():
         system = platform.system()
         
         if system == 'Darwin':  # macOS
-            result = subprocess.run(['open', str(input_folder)], capture_output=True, text=True)
-            if result.returncode != 0:
-                logger.error(f"Finder-Fehler: {result.stderr}")
-                return jsonify({'success': False, 'error': f'Fehler beim Öffnen: {result.stderr}'}), 500
-            logger.info(f"Finder geöffnet: {input_folder}")
+            try:
+                subprocess.run(['open', str(input_folder)], check=False)
+                logger.info(f"Finder geöffnet: {input_folder}")
+            except Exception as e:
+                logger.error(f"Finder-Fehler: {e}")
+                return jsonify({'success': False, 'error': f'Fehler beim Öffnen: {str(e)}'}), 500
         elif system == 'Windows':
-            result = subprocess.run(['explorer', str(input_folder)], capture_output=True, text=True)
-            if result.returncode != 0:
-                logger.error(f"Explorer-Fehler: {result.stderr}")
-                return jsonify({'success': False, 'error': f'Fehler beim Öffnen: {result.stderr}'}), 500
-            logger.info(f"Explorer geöffnet: {input_folder}")
+            try:
+                # explorer.exe gibt manchmal returncode 1 zurück, auch wenn erfolgreich
+                subprocess.Popen(['explorer', str(input_folder)])
+                logger.info(f"Explorer geöffnet: {input_folder}")
+            except Exception as e:
+                logger.error(f"Explorer-Fehler: {e}")
+                return jsonify({'success': False, 'error': f'Fehler beim Öffnen: {str(e)}'}), 500
         elif system == 'Linux':
             try:
                 result = subprocess.run(['xdg-open', str(input_folder)], capture_output=True, text=True)

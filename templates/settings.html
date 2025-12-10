@@ -71,6 +71,53 @@
 
                     <hr class="my-4">
 
+                    <h5 class="mb-3"><i class="bi bi-network"></i> Netzwerk-Pfade (für mehrere PCs)</h5>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> <strong>Für Netzwerkzugriff:</strong> 
+                        Wenn mehrere PCs mit unterschiedlichen Laufwerksbuchstaben auf die gleichen Ordner zugreifen, 
+                        gib hier die <strong>UNC-Pfade</strong> an (z.B. <code>\\Server\Werkstatt\Eingang</code>).
+                        Diese werden dann beim Öffnen verwendet.
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="network_input_path" class="form-label">
+                            <i class="bi bi-hdd-network"></i> Netzwerk-Eingangsordner (UNC-Pfad)
+                        </label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="network_input_path" name="network_input_path" 
+                                   placeholder="z.B. \\Server\Werkstatt\Eingang">
+                            <button class="btn btn-outline-secondary" type="button" id="btn-validate-network-input">
+                                <i class="bi bi-check-circle"></i> Prüfen
+                            </button>
+                        </div>
+                        <div class="form-text">
+                            UNC-Pfad für "Eingangsordner öffnen" - funktioniert auf allen PCs im Netzwerk<br>
+                            <small class="text-muted"><strong>Aktuell:</strong> <code id="current-network-input">Nicht gesetzt</code></small>
+                        </div>
+                        <div id="network-input-status" class="mt-1"></div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="network_archiv_path" class="form-label">
+                            <i class="bi bi-hdd-network"></i> Netzwerk-Archiv-Ordner (UNC-Pfad)
+                        </label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="network_archiv_path" name="network_archiv_path" 
+                                   placeholder="z.B. \\Server\Werkstatt\Archiv">
+                            <button class="btn btn-outline-secondary" type="button" id="btn-validate-network-archiv">
+                                <i class="bi bi-check-circle"></i> Prüfen
+                            </button>
+                        </div>
+                        <div class="form-text">
+                            UNC-Pfad für "Archiv-Ordner öffnen" - funktioniert auf allen PCs im Netzwerk<br>
+                            <small class="text-muted"><strong>Aktuell:</strong> <code id="current-network-archiv">Nicht gesetzt</code></small>
+                        </div>
+                        <div id="network-archiv-status" class="mt-1"></div>
+                    </div>
+
+                    <hr class="my-4">
+
                     <h5 class="mb-3"><i class="bi bi-cpu"></i> OCR-Einstellungen</h5>
 
                     <!-- Tesseract Status und Aktionen -->
@@ -246,6 +293,17 @@
                 <p class="small mb-2"><strong>Konfigurationsdatei:</strong></p>
                 <code class="small">.archiv_config.json</code>
                 
+                <p class="small mb-2 mt-3"><strong>Hostname:</strong></p>
+                <code class="small" id="hostname">-</code>
+                
+                <p class="small mb-2 mt-3"><strong>Lokale IP-Adresse(n):</strong></p>
+                <div id="local-ips" class="d-flex flex-wrap gap-2">
+                    <code class="small">-</code>
+                </div>
+                <div class="form-text mt-1">
+                    <small><i class="bi bi-info-circle"></i> Für Netzwerkzugriff: <strong>http://[IP]:5000</strong></small>
+                </div>
+                
                 <p class="small mb-2 mt-3"><strong>Python-Version:</strong></p>
                 <code class="small" id="python-version">-</code>
                 
@@ -283,6 +341,12 @@
                 }
                 document.getElementById('backup_target').value = data.backup_target || '';
                 document.getElementById('current-backup-target').textContent = data.backup_target || 'Nicht konfiguriert';
+                
+                document.getElementById('network_input_path').value = data.network_input_path || '';
+                document.getElementById('current-network-input').textContent = data.network_input_path || 'Nicht gesetzt';
+                
+                document.getElementById('network_archiv_path').value = data.network_archiv_path || '';
+                document.getElementById('current-network-archiv').textContent = data.network_archiv_path || 'Nicht gesetzt';
                 
                 document.getElementById('tesseract_lang').value = data.tesseract_lang || 'deu';
                 document.getElementById('max_pages_to_ocr').value = data.max_pages_to_ocr || 10;
@@ -347,14 +411,32 @@
     document.getElementById('settings-form').addEventListener('submit', function(e) {
         e.preventDefault();
 
+        const inputFolder = document.getElementById('input_folder').value.trim();
+        const archivRoot = document.getElementById('archiv_root').value.trim();
+        const networkInput = document.getElementById('network_input_path').value.trim();
+        const networkArchiv = document.getElementById('network_archiv_path').value.trim();
+        
+        // Validierung: Nur eine Konfiguration pro Ordner-Typ
+        if (inputFolder && networkInput) {
+            alert('⚠️ Fehler: Bitte nur ENTWEDER "Eingangsordner" ODER "Netzwerk-Eingangsordner" angeben, nicht beide!');
+            return;
+        }
+        
+        if (archivRoot && networkArchiv) {
+            alert('⚠️ Fehler: Bitte nur ENTWEDER "Archiv-Ordner" ODER "Netzwerk-Archiv-Ordner" angeben, nicht beide!');
+            return;
+        }
+
         const btnSave = document.getElementById('btn-save');
         btnSave.disabled = true;
         btnSave.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Speichere...';
 
         const formData = {
-            input_folder: document.getElementById('input_folder').value,
-            archiv_root: document.getElementById('archiv_root').value,
+            input_folder: inputFolder,
+            archiv_root: archivRoot,
             backup_target: document.getElementById('backup_target').value,
+            network_input_path: networkInput,
+            network_archiv_path: networkArchiv,
             tesseract_lang: document.getElementById('tesseract_lang').value,
             max_pages_to_ocr: parseInt(document.getElementById('max_pages_to_ocr').value),
             use_year_folders: document.getElementById('use_year_folders').checked,
@@ -425,11 +507,34 @@
             .then(data => {
                 document.getElementById('python-version').textContent = data.python_version || 'Unbekannt';
                 document.getElementById('tesseract-version').textContent = data.tesseract_version || 'Nicht installiert';
+                document.getElementById('hostname').textContent = data.hostname || 'Unbekannt';
+                
+                // Zeige alle IP-Adressen
+                const localIpsContainer = document.getElementById('local-ips');
+                if (data.local_ips && data.local_ips.length > 0) {
+                    localIpsContainer.innerHTML = '';
+                    data.local_ips.forEach(ip => {
+                        const badge = document.createElement('span');
+                        badge.className = 'badge bg-primary';
+                        badge.textContent = ip;
+                        badge.style.cursor = 'pointer';
+                        badge.title = 'Klicken zum Kopieren';
+                        badge.onclick = function() {
+                            navigator.clipboard.writeText(`http://${ip}:5000`);
+                            badge.textContent = '✓ Kopiert!';
+                            setTimeout(() => badge.textContent = ip, 1500);
+                        };
+                        localIpsContainer.appendChild(badge);
+                    });
+                } else {
+                    localIpsContainer.innerHTML = '<code class="small">Keine verfügbar</code>';
+                }
             })
             .catch(error => {
                 console.error('Fehler beim Laden der System-Info:', error);
                 document.getElementById('python-version').textContent = 'Fehler';
                 document.getElementById('tesseract-version').textContent = 'Fehler';
+                document.getElementById('hostname').textContent = 'Fehler';
             });
     }
 
@@ -667,6 +772,45 @@ ${outputHtml}
                 btn.innerHTML = '<i class="bi bi-translate"></i> Deutsche Sprache';
                 alert('Fehler: ' + error);
             });
+    });
+
+    // Validierung für Netzwerk-Pfade
+    function validateNetworkPath(fieldId, statusId) {
+        const path = document.getElementById(fieldId).value.trim();
+        const statusDiv = document.getElementById(statusId);
+        
+        if (!path) {
+            statusDiv.innerHTML = '<div class="alert alert-warning alert-sm py-1 px-2 mb-0"><small>Bitte einen Pfad eingeben</small></div>';
+            return;
+        }
+        
+        statusDiv.innerHTML = '<div class="alert alert-info alert-sm py-1 px-2 mb-0"><small><span class="spinner-border spinner-border-sm"></span> Prüfe...</small></div>';
+        
+        fetch('/api/settings/validate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: path })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.valid) {
+                statusDiv.innerHTML = '<div class="alert alert-success alert-sm py-1 px-2 mb-0"><small><i class="bi bi-check-circle-fill"></i> Pfad ist erreichbar</small></div>';
+            } else {
+                statusDiv.innerHTML = `<div class="alert alert-danger alert-sm py-1 px-2 mb-0"><small><i class="bi bi-x-circle-fill"></i> ${data.error}</small></div>`;
+            }
+        })
+        .catch(error => {
+            statusDiv.innerHTML = '<div class="alert alert-danger alert-sm py-1 px-2 mb-0"><small><i class="bi bi-x-circle-fill"></i> Fehler bei Validierung</small></div>';
+        });
+    }
+
+    // Event-Handler für Netzwerk-Pfad-Validierung
+    document.getElementById('btn-validate-network-input').addEventListener('click', function() {
+        validateNetworkPath('network_input_path', 'network-input-status');
+    });
+
+    document.getElementById('btn-validate-network-archiv').addEventListener('click', function() {
+        validateNetworkPath('network_archiv_path', 'network-archiv-status');
     });
 
     // Initial laden
