@@ -69,9 +69,10 @@ def process_single_pdf(pdf_path: Path, cfg: config.Config) -> bool:
     try:
         # 1. OCR durchführen (alle Seiten)
         lang = cfg.get("tesseract_lang", "deu")
+        poppler_path = cfg.get("poppler_path", None)
         
         logger.info("Schritt 1/7: OCR-Verarbeitung...")
-        page_texts = ocr.pdf_to_ocr_texts(pdf_path, max_pages=None, lang=lang)
+        page_texts = ocr.pdf_to_ocr_texts(pdf_path, max_pages=None, lang=lang, poppler_path=poppler_path)
         
         if not page_texts:
             logger.error(f"Keine Seiten in PDF gefunden: {pdf_path.name}")
@@ -484,6 +485,18 @@ Beispiele:
     tesseract_cmd = cfg.get("tesseract_cmd")
     if tesseract_cmd:
         ocr.setup_tesseract(tesseract_cmd)
+    
+    # Poppler-Pfad setzen (falls konfiguriert)
+    poppler_path = cfg.get("poppler_path")
+    if poppler_path:
+        poppler_bin = ocr.setup_poppler(poppler_path)
+        if not poppler_bin:
+            logger.warning("Konfigurierter Poppler-Pfad konnte nicht gefunden werden")
+    else:
+        # Auto-Detection
+        poppler_bin = ocr.setup_poppler(None)
+        if poppler_bin:
+            logger.info("Poppler automatisch erkannt")
     
     # Konfiguration setzen
     if args.set_input_folder:

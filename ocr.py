@@ -26,6 +26,37 @@ class OCRError(Exception):
     pass
 
 
+def _find_poppler_windows() -> Optional[str]:
+    """
+    Sucht Poppler auf Windows in Standard-Installationspfaden.
+    
+    Returns:
+        Pfad zum bin-Verzeichnis von Poppler oder None wenn nicht gefunden
+    """
+    import platform
+    if platform.system() != 'Windows':
+        return None
+    
+    # Standard-Installationspfade für Windows
+    standard_paths = [
+        # Portable Version im Projekt-Ordner (PRIORITÄT!)
+        Path(__file__).parent / "poppler_portable" / "Library" / "bin",
+        # Standard-Installationen
+        Path(r"C:\Program Files\poppler\Library\bin"),
+        Path(r"C:\Program Files (x86)\poppler\Library\bin"),
+        Path.home() / "AppData" / "Local" / "Programs" / "poppler" / "Library" / "bin",
+        Path(r"D:\Program Files\poppler\Library\bin"),
+    ]
+    
+    for path in standard_paths:
+        # Prüfe ob pdfinfo.exe existiert
+        if (path / "pdfinfo.exe").exists():
+            logger.info(f"Poppler gefunden: {path}")
+            return str(path)
+    
+    return None
+
+
 def _find_tesseract_windows() -> Optional[str]:
     """
     Sucht Tesseract auf Windows in Standard-Installationspfaden.
@@ -98,6 +129,40 @@ def setup_tesseract(tesseract_cmd: Optional[str] = None) -> None:
                 tessdata_str = str(tessdata_dir)
                 os.environ['TESSDATA_PREFIX'] = tessdata_str
                 logger.info(f"TESSDATA_PREFIX gesetzt: {tessdata_str}")
+
+
+def setup_poppler(poppler_path: Optional[str] = None) -> Optional[str]:
+    """
+    Konfiguriert den Pfad zu Poppler für pdf2image.
+    
+    Args:
+        poppler_path: Pfad zum bin-Verzeichnis von Poppler oder None für Auto-Detection
+        
+    Returns:
+        Pfad zum Poppler-bin-Verzeichnis oder None
+    """
+    import platform
+    
+    poppler_bin_path = None
+    
+    # Wenn ein Pfad angegeben wurde, prüfe ob er existiert
+    if poppler_path:
+        clean_path = str(Path(poppler_path))
+        
+        if (Path(clean_path) / "pdfinfo.exe").exists():
+            poppler_bin_path = clean_path
+        else:
+            logger.warning(f"Konfigurierter Poppler-Pfad existiert nicht: {clean_path}")
+            logger.warning("Versuche automatische Suche...")
+    
+    # Auf Windows: Automatisch in Standard-Pfaden suchen
+    if not poppler_bin_path and platform.system() == 'Windows':
+        poppler_bin_path = _find_poppler_windows()
+    
+    if poppler_bin_path:
+        logger.info(f"Poppler-Pfad gesetzt: {poppler_bin_path}")
+    
+    return poppler_bin_path
     else:
         if platform.system() == 'Windows':
             logger.warning("Tesseract nicht in Standard-Pfaden gefunden.")
@@ -160,7 +225,7 @@ def test_tesseract() -> bool:
         return False
 
 
-def pdf_to_images(pdf_path: Path, max_pages: Optional[int] = 10, dpi: int = 300) -> List[Image.Image]:
+def pdf_to_images(pdf_path: Path, max_pages: Optional[int] = 10, dpi: int = 300, poppler_path: Optional[str] = None) -> List[Image.Image]:
     """
     Konvertiert eine PDF-Datei in eine Liste von Bildern.
     
@@ -168,6 +233,7 @@ def pdf_to_images(pdf_path: Path, max_pages: Optional[int] = 10, dpi: int = 300)
         pdf_path: Pfad zur PDF-Datei
         max_pages: Maximale Anzahl der zu konvertierenden Seiten (None = alle Seiten)
         dpi: Auflösung für die Konvertierung (höher = bessere Qualität, aber langsamer)
+        poppler_path: Pfad zum Poppler bin-Verzeichnis (optional, für Windows)
     
     Returns:
         Liste von PIL Image-Objekten
@@ -191,14 +257,48 @@ def pdf_to_images(pdf_path: Path, max_pages: Optional[int] = 10, dpi: int = 300)
             dpi=dpi,
             first_page=1,
             last_page=max_pages,
-            fmt='jpeg'
+            fmt='jpeg',
+            poppler_path=poppler_path  # Poppler-Pfad übergeben (wichtig für Windows)
         )
         
         logger.info(f"PDF konvertiert: {len(images)} Seiten")
         return images
         
     except Exception as e:
-        raise OCRError(f"Fehler bei PDF-Konvertierung von {pdf_path.name}: {e}")
+        # Bessere Fehlermeldung für Poppler-Probleme
+        import platform
+        error_msg = f"Fehler bei PDF-Konvertierung von {pdf_path.name}: {e}"
+        
+        if "poppler" in str(e).lower():
+            logger.error("=" * 60)
+            logger.error("  POPPLER NICHT GEFUNDEN!")
+            logger.error("=" * 60)
+            
+            if platform.system() == 'Windows':
+                logger.error("")
+                logger.error("  LÖSUNG FÜR WINDOWS:")
+                logger.error("  1. Führe 'install_poppler.bat' aus")
+                logger.error("     ODER")
+                logger.error("  2. Lade Poppler manuell herunter:")
+                logger.error("     https://github.com/oschwartz10612/poppler-windows/releases/")
+                logger.error("  3. Entpacke nach: C:\\Program Files\\poppler")
+                logger.error("  4. Setze in Config: \"poppler_path\": \"C:\\\\Program Files\\\\poppler\\\\Library\\\\bin\"")
+                logger.error("")
+                logger.error("  Gepruefte Pfade:")
+                logger.error("  - C:\\Program Files\\poppler\\Library\\bin")
+                logger.error("  - C:\\Program Files (x86)\\poppler\\Library\\bin")
+            elif platform.system() == 'Darwin':
+                logger.error("")
+                logger.error("  LÖSUNG FÜR macOS:")
+                logger.error("  brew install poppler")
+            else:
+                logger.error("")
+                logger.error("  LÖSUNG FÜR LINUX:")
+                logger.error("  sudo apt-get install poppler-utils")
+            
+            logger.error("=" * 60)
+        
+        raise OCRError(error_msg)
 
 
 def image_to_text(image: Image.Image, lang: str = "deu", config: str = "") -> str:
@@ -234,7 +334,8 @@ def pdf_to_ocr_texts(
     pdf_path: Path,
     max_pages: Optional[int] = 10,
     lang: str = "deu",
-    dpi: int = 300
+    dpi: int = 300,
+    poppler_path: Optional[str] = None
 ) -> List[str]:
     """
     Führt OCR auf einer PDF-Datei durch und gibt eine Liste von Texten zurück.
@@ -250,6 +351,7 @@ def pdf_to_ocr_texts(
         max_pages: Maximale Anzahl der zu verarbeitenden Seiten (None = alle Seiten)
         lang: Tesseract-Sprachcode
         dpi: Auflösung für die PDF-Konvertierung
+        poppler_path: Pfad zum Poppler bin-Verzeichnis (optional, für Windows)
     
     Returns:
         Liste von Texten (einer pro Seite)
@@ -260,7 +362,7 @@ def pdf_to_ocr_texts(
     logger.info(f"Starte OCR-Verarbeitung: {pdf_path.name}")
     
     # PDF zu Bildern konvertieren
-    images = pdf_to_images(pdf_path, max_pages=max_pages, dpi=dpi)
+    images = pdf_to_images(pdf_path, max_pages=max_pages, dpi=dpi, poppler_path=poppler_path)
     
     if not images:
         raise OCRError(f"Keine Seiten in PDF gefunden: {pdf_path.name}")
@@ -289,7 +391,7 @@ def pdf_to_ocr_texts(
     return texts
 
 
-def extract_text_from_first_page(pdf_path: Path, lang: str = "deu", dpi: int = 300) -> str:
+def extract_text_from_first_page(pdf_path: Path, lang: str = "deu", dpi: int = 300, poppler_path: Optional[str] = None) -> str:
     """
     Extrahiert nur den Text von der ersten Seite (für Metadaten-Extraktion).
     
@@ -297,6 +399,7 @@ def extract_text_from_first_page(pdf_path: Path, lang: str = "deu", dpi: int = 3
         pdf_path: Pfad zur PDF-Datei
         lang: Tesseract-Sprachcode
         dpi: Auflösung für die PDF-Konvertierung
+        poppler_path: Pfad zum Poppler bin-Verzeichnis (optional, für Windows)
     
     Returns:
         Text von Seite 1
@@ -304,7 +407,7 @@ def extract_text_from_first_page(pdf_path: Path, lang: str = "deu", dpi: int = 3
     Raises:
         OCRError: Bei Fehlern bei der Verarbeitung
     """
-    texts = pdf_to_ocr_texts(pdf_path, max_pages=1, lang=lang, dpi=dpi)
+    texts = pdf_to_ocr_texts(pdf_path, max_pages=1, lang=lang, dpi=dpi, poppler_path=poppler_path)
     return texts[0] if texts else ""
 
 
@@ -351,7 +454,8 @@ def pdf_to_ocr_texts_enhanced(
     pdf_path: Path,
     max_pages: Optional[int] = 10,
     lang: str = "deu",
-    dpi: int = 400  # Höhere Auflösung für schlechte Scans
+    dpi: int = 400,  # Höhere Auflösung für schlechte Scans
+    poppler_path: Optional[str] = None
 ) -> List[str]:
     """
     Wie pdf_to_ocr_texts, aber mit Bildvorverarbeitung für bessere Ergebnisse.
@@ -361,7 +465,7 @@ def pdf_to_ocr_texts_enhanced(
     """
     logger.info(f"Starte erweiterte OCR-Verarbeitung: {pdf_path.name}")
     
-    images = pdf_to_images(pdf_path, max_pages=max_pages, dpi=dpi)
+    images = pdf_to_images(pdf_path, max_pages=max_pages, dpi=dpi, poppler_path=poppler_path)
     
     if not images:
         raise OCRError(f"Keine Seiten in PDF gefunden: {pdf_path.name}")

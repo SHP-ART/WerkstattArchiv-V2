@@ -12,6 +12,9 @@ Automatische Archivierung und Verwaltung von Werkstatt-PDF-Aufträgen mit OCR, S
 - **Strukturierte Archivierung**: Ablage nach Auftragsnummer mit Tausender-Blöcken
 - **SQLite-Datenbank**: Volltext-Suche nach Aufträgen, Kunden, Kennzeichen, Schlagwörtern
 - **Ordnerüberwachung**: Automatische Verarbeitung neuer PDFs im Eingangsordner
+- **Web-UI**: Moderne Browser-Oberfläche mit Live-Updates und Statistiken
+- **Netzwerk-Fähig**: Server-Modus für Zugriff von mehreren PCs (Relais-Funktion)
+- **Standalone-EXE**: Deployment als eigenständige ausführbare Datei ohne Python-Installation
 - **Backup-Funktion**: Regelmäßige Sicherung von Datenbank und Archiv
 - **Kunden-Index**: CSV-Export aller Aufträge mit Kundendaten
 
@@ -25,6 +28,11 @@ Automatische Archivierung und Verwaltung von Werkstatt-PDF-Aufträgen mit OCR, S
   - **macOS**: `brew install tesseract tesseract-lang`
   - **Windows**: Download von https://github.com/UB-Mannheim/tesseract/wiki
   - **Linux**: `sudo apt-get install tesseract-ocr tesseract-ocr-deu`
+
+- **Poppler**: Erforderlich für PDF-zu-Bild-Konvertierung
+  - **macOS**: `brew install poppler`
+  - **Windows**: Siehe [POPPLER_INSTALLATION.md](POPPLER_INSTALLATION.md) oder `install_poppler.bat`
+  - **Linux**: `sudo apt-get install poppler-utils`
 
 ### Python-Pakete
 Installiere die Abhängigkeiten mit:
@@ -226,6 +234,44 @@ Archiv/
 │       └── 000303_Auftrag.pdf
 └── kunden_index.csv
 ```
+
+## 🚀 Server-Deployment (Netzwerk-Relais)
+
+### Eigenständige Server.exe erstellen
+
+Für den Betrieb als zentraler Server im Netzwerk (ohne Python auf Client-PCs):
+
+```batch
+# 1. Server.exe bauen (auf Entwicklungs-PC)
+build_server.bat
+
+# 2. Auf Server-PC deployen
+# - Kopiere dist/WerkstattArchiv-Server.exe
+# - Kopiere .archiv_config.json
+# - Installiere Tesseract & Poppler
+
+# 3. Server starten
+WerkstattArchiv-Server.exe
+```
+
+**Zugriff von Client-PCs:**
+```
+http://<SERVER-IP>:8080
+```
+
+### Vorteile
+
+✅ **Zentrale Instanz** - Mehrere PCs greifen auf gleiche Datenbank zu  
+✅ **Keine Python-Installation** auf Client-PCs erforderlich  
+✅ **Einfaches Deployment** - Nur eine .exe-Datei  
+✅ **Netzwerk-Zugriff** - Von überall im LAN erreichbar  
+✅ **Relais-Funktion** - Server verarbeitet, Clients zeigen nur an  
+
+### Dokumentation
+
+- 📘 **Quick-Start:** [SERVER_EXE.md](SERVER_EXE.md)
+- 📗 **Vollständige Anleitung:** [SERVER_DEPLOYMENT.md](SERVER_DEPLOYMENT.md)
+- 🔧 **Poppler-Installation:** [POPPLER_INSTALLATION.md](POPPLER_INSTALLATION.md)
 
 ## Datenbank-Schema
 

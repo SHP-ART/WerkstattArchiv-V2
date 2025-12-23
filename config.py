@@ -36,6 +36,7 @@ DEFAULT_CONFIG = {
     "kunden_index_file": "kunden_index.csv",
     "tesseract_cmd": None,  # None = auto-detect, oder z.B. r"C:\Program Files\Tesseract-OCR\tesseract.exe"
     "tesseract_lang": "deu",
+    "poppler_path": None,  # None = auto-detect (PATH), oder z.B. r"C:\Program Files\poppler\Library\bin"
     
     # Schlagwörter für die Suche in Anhängen (Seiten 2-10)
     "keywords": [
