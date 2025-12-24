@@ -1,165 +1,182 @@
 @echo off
 setlocal EnableDelayedExpansion
-chcp 65001 >nul 2>&1
-title Tesseract OCR Installation
-
+echo ============================================================
+echo Tesseract OCR Installation fuer Werkstatt-Archiv
+echo ============================================================
 echo.
-echo ============================================
-echo    TESSERACT OCR INSTALLATION
-echo ============================================
+echo Tesseract wird fuer OCR (Texterkennung) benoetigt.
 echo.
 
-REM === Schritt 1: Pruefen ob bereits installiert ===
-echo [1/4] Pruefe ob Tesseract bereits installiert ist...
-
-where tesseract >nul 2>&1
-if !errorlevel!==0 (
+REM Prüfe ob bereits installiert
+if exist "C:\Program Files\Tesseract-OCR\tesseract.exe" (
+    echo [OK] Tesseract ist bereits installiert!
+    echo Pfad: C:\Program Files\Tesseract-OCR
     echo.
-    echo [OK] Tesseract ist bereits installiert und im PATH!
+    "C:\Program Files\Tesseract-OCR\tesseract.exe" --version
     echo.
-    tesseract --version
-    echo.
-    goto :test_german
+    goto check_german
 )
 
-REM === Schritt 2: Standard-Pfade pruefen ===
-echo       Nicht im PATH, pruefe Standard-Pfade...
-
-set "TESS_EXE="
-set "TESS64=C:\Program Files\Tesseract-OCR\tesseract.exe"
-set "TESS32=C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"
-
-if exist "!TESS64!" (
-    set "TESS_EXE=!TESS64!"
-    echo [OK] Gefunden: 64-bit Version
-    goto :test_version
-)
-
-if exist "!TESS32!" (
-    set "TESS_EXE=!TESS32!"
-    echo [OK] Gefunden: 32-bit Version
-    goto :test_version
-)
-
-echo       Nicht gefunden in Standard-Pfaden.
-echo.
-
-REM === Schritt 3: Installation ===
-echo [2/4] Tesseract muss installiert werden...
-echo.
-
-REM Pruefe ob winget verfuegbar ist
-where winget >nul 2>&1
-if !errorlevel!==0 (
-    echo       Winget gefunden - starte automatische Installation...
+if exist "C:\Program Files (x86)\Tesseract-OCR\tesseract.exe" (
+    echo [OK] Tesseract ist bereits installiert!
+    echo Pfad: C:\Program Files (x86^)\Tesseract-OCR
     echo.
-    echo       HINWEIS: Falls ein Fenster erscheint, bitte bestaetigen.
+    "C:\Program Files (x86)\Tesseract-OCR\tesseract.exe" --version
     echo.
-    winget install -e --id UB-Mannheim.TesseractOCR --accept-package-agreements --accept-source-agreements
-    
-    echo.
-    echo       Pruefe Installation...
-    
-    REM Pfad neu pruefen
-    if exist "!TESS64!" (
-        set "TESS_EXE=!TESS64!"
-        echo [OK] Installation erfolgreich!
-        goto :test_version
-    )
-    if exist "!TESS32!" (
-        set "TESS_EXE=!TESS32!"
-        echo [OK] Installation erfolgreich!
-        goto :test_version
-    )
-    
-    echo [!] Installation konnte nicht verifiziert werden.
-    goto :manual_install
-) else (
-    goto :manual_install
+    goto check_german
 )
 
-:manual_install
+echo OPTION 1: Automatischer Download (empfohlen)
+echo OPTION 2: Manuelle Installation
 echo.
-echo ============================================
-echo    MANUELLE INSTALLATION ERFORDERLICH
-echo ============================================
-echo.
-echo 1. Oeffne im Browser:
-echo    https://github.com/UB-Mannheim/tesseract/wiki
-echo.
-echo 2. Lade herunter: tesseract-ocr-w64-setup-5.x.x.exe
-echo.
-echo 3. Bei der Installation WICHTIG:
-echo    - "Additional language data" auswaehlen
-echo    - "German" aktivieren!
-echo.
-echo 4. Nach der Installation dieses Script erneut starten.
-echo.
-set /p "OPEN_URL=Browser jetzt oeffnen? (j/n): "
-if /i "!OPEN_URL!"=="j" (
-    start https://github.com/UB-Mannheim/tesseract/wiki
-)
-goto :end
+choice /C 12 /M "Waehle Option (1 oder 2)"
 
-:test_version
+if errorlevel 2 goto MANUAL
+if errorlevel 1 goto DOWNLOAD
+
+:DOWNLOAD
 echo.
-echo [3/4] Teste Tesseract...
+echo ============================================================
+echo Automatische Installation
+echo ============================================================
 echo.
 
-if defined TESS_EXE (
-    "!TESS_EXE!" --version
+REM Erstelle temporäres Verzeichnis
+set TEMP_DIR=%TEMP%\tesseract_install
+if not exist "%TEMP_DIR%" mkdir "%TEMP_DIR%"
+
+echo [1/3] Lade Tesseract herunter...
+echo.
+echo Download von: https://github.com/UB-Mannheim/tesseract
+echo Version: 5.3.3
+echo.
+
+REM Download mit PowerShell
+powershell -Command "$ProgressPreference = 'SilentlyContinue'; try { $url = 'https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.3.20231005/tesseract-ocr-w64-setup-5.3.3.20231005.exe'; Write-Host 'Download: tesseract-ocr-w64-setup-5.3.3.20231005.exe'; Invoke-WebRequest -Uri $url -OutFile '%TEMP_DIR%\tesseract_setup.exe' -UseBasicParsing; exit 0 } catch { Write-Host 'Fehler beim Download:' $_.Exception.Message; exit 1 }"
+
+if %ERRORLEVEL% NEQ 0 (
     echo.
-) else (
-    echo [!] Kein Tesseract-Pfad gefunden.
-    goto :end
+    echo [FEHLER] Download fehlgeschlagen!
+    goto MANUAL
 )
 
-:test_german
-echo [4/4] Pruefe deutsche Sprachdatei...
+echo.
+echo [2/3] Installiere Tesseract...
+echo.
+echo WICHTIG: Im Installations-Dialog bitte folgendes auswaehlen:
+echo   - [x] Additional language data
+echo   - [x] German (deu.traineddata)
+echo.
+echo Starte Installation... (Fenster wird sich oeffnen)
+timeout /t 3 /nobreak >nul
+
+REM Starte Installer (interaktiv)
+"%TEMP_DIR%\tesseract_setup.exe"
+
+echo.
+echo Warte auf Installations-Abschluss...
+timeout /t 5 /nobreak >nul
+
+REM Prüfe ob installiert wurde
+if exist "C:\Program Files\Tesseract-OCR\tesseract.exe" (
+    echo.
+    echo [OK] Installation erfolgreich!
+    set TESS_PATH=C:\Program Files\Tesseract-OCR
+    goto check_german
+)
+
+if exist "C:\Program Files (x86)\Tesseract-OCR\tesseract.exe" (
+    echo.
+    echo [OK] Installation erfolgreich!
+    set TESS_PATH=C:\Program Files (x86)\Tesseract-OCR
+    goto check_german
+)
+
+echo.
+echo [WARNUNG] Installation konnte nicht verifiziert werden.
+echo Bitte manuell pruefen oder Script erneut ausfuehren.
+goto END
+
+:check_german
+echo.
+echo [3/3] Pruefe deutsche Sprachdatei...
 echo.
 
 REM Finde tessdata Ordner
-set "TESSDATA="
-set "TD64=C:\Program Files\Tesseract-OCR\tessdata"
-set "TD32=C:\Program Files (x86)\Tesseract-OCR\tessdata"
-
-if exist "!TD64!" set "TESSDATA=!TD64!"
-if exist "!TD32!" set "TESSDATA=!TD32!"
-
-if not defined TESSDATA (
-    echo [!] Tessdata-Ordner nicht gefunden.
-    goto :show_config
-)
-
-if exist "!TESSDATA!\deu.traineddata" (
-    echo [OK] Deutsche Sprachdatei ist installiert!
+if exist "C:\Program Files\Tesseract-OCR\tessdata" (
+    set TESSDATA=C:\Program Files\Tesseract-OCR\tessdata
+) else if exist "C:\Program Files (x86)\Tesseract-OCR\tessdata" (
+    set TESSDATA=C:\Program Files (x86)\Tesseract-OCR\tessdata
 ) else (
-    echo [!] Deutsche Sprachdatei fehlt!
-    echo.
-    echo     Lade deu.traineddata herunter...
-    powershell -Command "Invoke-WebRequest -Uri 'https://github.com/tesseract-ocr/tessdata/raw/main/deu.traineddata' -OutFile '!TESSDATA!\deu.traineddata'" 2>nul
-    
-    if exist "!TESSDATA!\deu.traineddata" (
-        echo [OK] Deutsche Sprachdatei heruntergeladen!
-    ) else (
-        echo [!] Download fehlgeschlagen.
-        echo     Bitte manuell herunterladen:
-        echo     https://github.com/tesseract-ocr/tessdata/raw/main/deu.traineddata
-        echo     Speichern unter: !TESSDATA!\deu.traineddata
-    )
+    echo [WARNUNG] tessdata-Ordner nicht gefunden.
+    goto END
 )
 
-:show_config
-echo.
-echo ============================================
-echo    FERTIG!
-echo ============================================
-echo.
-echo Tesseract sollte jetzt funktionieren.
-echo Das Werkstatt-Archiv findet es automatisch.
+if exist "%TESSDATA%\deu.traineddata" (
+    echo [OK] Deutsche Sprachdatei ist installiert!
+    goto SUCCESS
+)
+
+echo [!] Deutsche Sprachdatei fehlt!
+echo Lade deu.traineddata herunter...
 echo.
 
-:end
+powershell -Command "$ProgressPreference = 'SilentlyContinue'; try { Invoke-WebRequest -Uri 'https://github.com/tesseract-ocr/tessdata/raw/main/deu.traineddata' -OutFile '%TESSDATA%\deu.traineddata' -UseBasicParsing; Write-Host '[OK] Download erfolgreich!'; exit 0 } catch { Write-Host '[FEHLER] Download fehlgeschlagen:' $_.Exception.Message; exit 1 }"
+
+if %ERRORLEVEL% EQU 0 (
+    goto SUCCESS
+) else (
+    echo.
+    echo Bitte manuell herunterladen:
+    echo 1. https://github.com/tesseract-ocr/tessdata/raw/main/deu.traineddata
+    echo 2. Speichern unter: %TESSDATA%\deu.traineddata
+    echo.
+    goto END
+)
+
+:SUCCESS
 echo.
-echo Druecke eine Taste zum Beenden...
-pause >nul
+echo ============================================================
+echo Installation abgeschlossen!
+echo ============================================================
+echo.
+echo Tesseract ist installiert und einsatzbereit.
+echo Pfad: %TESSDATA%\..
+echo.
+echo Das Werkstatt-Archiv findet Tesseract automatisch.
+echo.
+echo Test: tesseract --version
+echo.
+
+REM Cleanup
+if exist "%TEMP_DIR%" rmdir /s /q "%TEMP_DIR%" >nul 2>&1
+
+pause
+exit /b 0
+
+:MANUAL
+echo.
+echo ============================================================
+echo Manuelle Installation
+echo ============================================================
+echo.
+echo 1. Download: https://github.com/UB-Mannheim/tesseract/wiki
+echo    Lade: tesseract-ocr-w64-setup-5.x.x.exe
+echo.
+echo 2. Bei der Installation WICHTIG auswaehlen:
+echo    - [x] Additional language data
+echo    - [x] German (deu.traineddata)
+echo.
+echo 3. Installiere nach: C:\Program Files\Tesseract-OCR
+echo.
+echo 4. Nach der Installation dieses Script erneut starten
+echo    zum Pruefen der Installation.
+echo.
+choice /C JN /M "Browser jetzt oeffnen"
+if errorlevel 2 goto END
+start https://github.com/UB-Mannheim/tesseract/wiki
+
+:END
+echo.
+pause
+exit /b 1

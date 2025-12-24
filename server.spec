@@ -25,6 +25,11 @@ a = Analysis(
         ('kunden_index.py', '.'),
         ('backup.py', '.'),
         ('web_app.py', '.'),
+        # Installations-Scripte für Deployment
+        ('install_tesseract.bat', '.'),
+        ('install_poppler.bat', '.'),
+        ('diagnose_tesseract.bat', '.'),
+        ('diagnose_poppler.bat', '.'),
     ],
     hiddenimports=[
         # Web-Framework
