@@ -4,16 +4,27 @@ PyInstaller Spec-Datei für Werkstatt-Archiv Server (Standalone)
 Erstellt eine eigenständige server.exe für Windows
 """
 
+from pathlib import Path
+
 block_cipher = None
 
 a = Analysis(
     ['server.py'],
-    pathex=[],
+    pathex=['.'],  # Aktuelles Verzeichnis für lokale Module
     binaries=[],
     datas=[
         ('templates', 'templates'),
         ('Logo', 'Logo'),
-        ('.archiv_config.json', '.') if Path('.archiv_config.json').exists() else None,
+        # Lokale Module als Daten
+        ('config.py', '.'),
+        ('ocr.py', '.'),
+        ('parser.py', '.'),
+        ('archive.py', '.'),
+        ('db.py', '.'),
+        ('watcher.py', '.'),
+        ('kunden_index.py', '.'),
+        ('backup.py', '.'),
+        ('web_app.py', '.'),
     ],
     hiddenimports=[
         # Web-Framework
@@ -88,9 +99,6 @@ a = Analysis(
     cipher=block_cipher,
     noarchive=False,
 )
-
-# Datas bereinigen (None-Einträge entfernen)
-a.datas = [d for d in a.datas if d is not None]
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 

@@ -9,19 +9,25 @@ echo Werkstatt-Archiv Server - Build
 echo ============================================================
 echo.
 
-REM Prüfe ob Python verfügbar ist
-python --version >nul 2>&1
-if %ERRORLEVEL% NEQ 0 (
-    echo [FEHLER] Python nicht gefunden!
-    echo Bitte Python 3.9+ installieren: https://www.python.org/downloads/
-    pause
-    exit /b 1
+REM Prüfe ob Python verfügbar ist (py launcher bevorzugt)
+py --version >nul 2>&1
+if %ERRORLEVEL% EQU 0 (
+    echo [OK] Python gefunden
+    echo.
+) else (
+    python --version >nul 2>&1
+    if %ERRORLEVEL% NEQ 0 (
+        echo [FEHLER] Python nicht gefunden!
+        echo Bitte Python 3.9+ installieren: https://www.python.org/downloads/
+        pause
+        exit /b 1
+    )
 )
 
 echo [1/5] Prüfe Virtual Environment...
 if not exist ".venv\Scripts\python.exe" (
     echo     Virtual Environment nicht gefunden. Erstelle...
-    python -m venv .venv
+    py -m venv .venv
     if %ERRORLEVEL% NEQ 0 (
         echo     [FEHLER] Konnte venv nicht erstellen
         pause
@@ -88,8 +94,6 @@ echo.
 echo Dateien für Deployment:
 echo   1. dist\WerkstattArchiv-Server.exe
 echo   2. .archiv_config.json (Konfiguration)
-echo   3. templates\ (HTML-Templates, falls nicht eingebettet)
-echo   4. Logo\ (optional, falls nicht eingebettet)
 echo.
 echo Zum Testen:
 echo   cd dist

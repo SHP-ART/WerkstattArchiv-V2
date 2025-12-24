@@ -161,12 +161,12 @@ def setup_poppler(poppler_path: Optional[str] = None) -> Optional[str]:
     
     if poppler_bin_path:
         logger.info(f"Poppler-Pfad gesetzt: {poppler_bin_path}")
-    
-    return poppler_bin_path
     else:
         if platform.system() == 'Windows':
-            logger.warning("Tesseract nicht in Standard-Pfaden gefunden.")
-            logger.warning("Bitte 'install_tesseract.bat' ausführen.")
+            logger.warning("Poppler nicht in Standard-Pfaden gefunden.")
+            logger.warning("Bitte 'install_poppler.bat' ausführen oder Pfad in Config setzen.")
+    
+    return poppler_bin_path
 
 
 def test_tesseract() -> bool:

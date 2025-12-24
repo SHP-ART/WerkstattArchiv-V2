@@ -27,7 +27,7 @@ def main():
     try:
         # Web-App importieren
         logger.info("Lade Web-Anwendung...")
-        from web_app import app, configure_app
+        from web_app import app
         
         # Konfiguration laden
         logger.info("Lade Konfiguration...")
@@ -45,9 +45,6 @@ def main():
         poppler_bin = ocr.setup_poppler(poppler_path)
         if poppler_bin:
             logger.info(f"Poppler konfiguriert: {poppler_bin}")
-        
-        # App konfigurieren
-        configure_app(app)
         
         # Server-Einstellungen
         host = '0.0.0.0'  # Auf allen Netzwerk-Interfaces
